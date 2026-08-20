@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #0b0f19;
+    --bg-card: #151c2c;
+    --bg-card-subtle: #1e293b;
+    --bg-input: #0f172a;
+    --border-main: #334155;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-emerald: #10b981;
+    --accent-emerald-bg: rgba(16, 185, 129, 0.15);
+    --accent-emerald-border: rgba(16, 185, 129, 0.3);
+    --header-bg: #151c2ce6;
+    --table-header-bg: #0f172a;
+    --table-hover-bg: rgba(51, 65, 85, 0.4);
+    --modal-overlay: rgba(11, 15, 25, 0.75);
+  }
+
+  html.light {
+    --bg-main: #f1f5f9;
+    --bg-card: #ffffff;
+    --bg-card-subtle: #f8fafc;
+    --bg-input: #ffffff;
+    --border-main: #cbd5e1;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --accent-emerald: #059669;
+    --accent-emerald-bg: rgba(5, 150, 105, 0.1);
+    --accent-emerald-border: rgba(5, 150, 105, 0.3);
+    --header-bg: #ffffffeb;
+    --table-header-bg: #f8fafc;
+    --table-hover-bg: #f1f5f9;
+    --modal-overlay: rgba(15, 23, 42, 0.5);
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Theme Utilities */
+.clean-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-main);
+  border-radius: 16px;
+  color: var(--text-primary);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.clean-card-subtle {
+  background-color: var(--bg-card-subtle);
+  border: 1px solid var(--border-main);
+  border-radius: 12px;
+}
+
+.clean-input {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-main);
+  color: var(--text-primary);
+  border-radius: 8px;
+  transition: border-color 0.15s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.clean-input:focus {
+  outline: none;
+  border-color: var(--accent-emerald);
+}
+
+.clean-header {
+  background-color: var(--header-bg);
+  border-bottom: 1px solid var(--border-main);
+  backdrop-filter: blur(12px);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Custom Slide Left Animation for Right Side Drawer */
+@keyframes slideLeft {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-left {
+  animation: slideLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-main);
+  border-radius: 4px;
+}
+@theme {
+  --color-bg-main: var(--bg-main);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card-subtle: var(--bg-card-subtle);
+  --color-bg-input: var(--bg-input);
+  --color-border-main: var(--border-main);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-modal-overlay: var(--modal-overlay);
+}
