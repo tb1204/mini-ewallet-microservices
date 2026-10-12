@@ -40,6 +40,24 @@ public class UserService {
     }
 
     /**
+     * Retrieve user profile details by identifier (phone, email, username, or UUID).
+     */
+    public UserResponse getUserByIdentifier(String identifier) {
+        User user = userRepository.findByPhoneNumber(identifier)
+                .or(() -> userRepository.findByEmail(identifier))
+                .or(() -> userRepository.findByUsername(identifier))
+                .or(() -> {
+                    try {
+                        return userRepository.findById(UUID.fromString(identifier));
+                    } catch (Exception e) {
+                        return java.util.Optional.empty();
+                    }
+                })
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+        return authService.mapToUserResponse(user);
+    }
+
+    /**
      * Update user profile metadata (full name, avatar URL):
      */
     @Transactional

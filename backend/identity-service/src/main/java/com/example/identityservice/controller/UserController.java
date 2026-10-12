@@ -38,6 +38,13 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Lấy thông tin người dùng thành công", response));
     }
 
+    /** GET /api/v1/users/search/{identifier} endpoint looking up user by phone/email/username/UUID. */
+    @GetMapping("/search/{identifier}")
+    public ResponseEntity<ApiResponse<UserResponse>> getUserByIdentifier(@PathVariable String identifier) {
+        UserResponse response = userService.getUserByIdentifier(identifier);
+        return ResponseEntity.ok(ApiResponse.success("Tìm kiếm người dùng thành công", response));
+    }
+
     /** Authenticated PUT /api/v1/users/profile endpoint updating profile metadata. */
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<UserResponse>> updateProfile(@Valid @RequestBody UpdateProfileRequest request) {
