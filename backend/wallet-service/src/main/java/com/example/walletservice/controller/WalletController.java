@@ -70,6 +70,19 @@ public class WalletController {
     }
 
     /**
+     * Inter-service Endpoint: Retrieve wallet details by user UUID (Internal API).
+     */
+    @GetMapping("/internal/user/{userId}")
+    public ResponseEntity<ApiResponse<WalletResponse>> getWalletByUserIdInternal(@PathVariable UUID userId) {
+        WalletResponse response = walletService.getWalletByUserId(userId);
+        return ResponseEntity.ok(
+                ApiResponse.<WalletResponse>builder()
+                        .result(response)
+                        .build()
+        );
+    }
+
+    /**
      * Top-up funds into current authenticated user's wallet.
      */
     @PostMapping("/top-up")

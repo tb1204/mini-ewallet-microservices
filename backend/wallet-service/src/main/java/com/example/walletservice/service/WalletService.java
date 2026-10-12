@@ -9,6 +9,8 @@ import com.example.walletservice.dto.request.WithdrawRequest;
 import com.example.walletservice.dto.response.WalletResponse;
 import com.example.walletservice.entity.Wallet;
 import com.example.walletservice.exception.AppException;
+import com.example.walletservice.entity.WalletOperation;
+import com.example.walletservice.repository.WalletOperationRepository;
 import com.example.walletservice.repository.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +29,7 @@ import java.util.UUID;
 public class WalletService {
 
     private final WalletRepository walletRepository;
+    private final WalletOperationRepository walletOperationRepository;
 
     /**
      * Create a new wallet associated with user ID:
@@ -106,6 +109,7 @@ public class WalletService {
 
     /**
      * Internal Saga Pattern Operation: Deposit funds into target wallet (e.g. transfer recipient).
+     * Guaranteed Idempotent by transactionId.
      */
     @Transactional
     public WalletResponse depositInternal(BalanceOperationRequest request) {
@@ -116,14 +120,30 @@ public class WalletService {
 
         validateWalletActive(wallet);
 
+        // Idempotency check: If this transaction deposit was already processed, return existing wallet directly
+        String operationKey = "DEPOSIT_" + (request.getTransactionId() != null ? request.getTransactionId() : UUID.randomUUID().toString());
+        if (walletOperationRepository.existsByOperationKey(operationKey)) {
+            log.warn("Duplicate deposit detected for operationKey: {}. Returning current wallet (Idempotent).", operationKey);
+            return mapToWalletResponse(wallet);
+        }
+
         wallet.setBalance(wallet.getBalance().add(request.getAmount()));
         Wallet updatedWallet = walletRepository.save(wallet);
+
+        walletOperationRepository.save(WalletOperation.builder()
+                .operationKey(operationKey)
+                .walletId(wallet.getId())
+                .userId(wallet.getUserId())
+                .amount(request.getAmount())
+                .operationType("DEPOSIT")
+                .build());
 
         return mapToWalletResponse(updatedWallet);
     }
 
     /**
      * Internal Saga Pattern Operation: Deduct funds from source wallet (e.g. transfer sender).
+     * Guaranteed Idempotent by transactionId.
      */
     @Transactional
     public WalletResponse deductInternal(BalanceOperationRequest request) {
@@ -133,10 +153,26 @@ public class WalletService {
                 .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         validateWalletActive(wallet);
+
+        // Idempotency check: If this transaction deduction was already processed, return existing wallet directly
+        String operationKey = "DEDUCT_" + (request.getTransactionId() != null ? request.getTransactionId() : UUID.randomUUID().toString());
+        if (walletOperationRepository.existsByOperationKey(operationKey)) {
+            log.warn("Duplicate deduct detected for operationKey: {}. Returning current wallet (Idempotent).", operationKey);
+            return mapToWalletResponse(wallet);
+        }
+
         validateSufficientBalance(wallet, request.getAmount());
 
         wallet.setBalance(wallet.getBalance().subtract(request.getAmount()));
         Wallet updatedWallet = walletRepository.save(wallet);
+
+        walletOperationRepository.save(WalletOperation.builder()
+                .operationKey(operationKey)
+                .walletId(wallet.getId())
+                .userId(wallet.getUserId())
+                .amount(request.getAmount())
+                .operationType("DEDUCT")
+                .build());
 
         return mapToWalletResponse(updatedWallet);
     }

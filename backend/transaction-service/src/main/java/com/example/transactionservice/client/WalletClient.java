@@ -1,5 +1,6 @@
 package com.example.transactionservice.client;
 
+import com.example.transactionservice.config.FeignClientConfig;
 import com.example.transactionservice.dto.request.BalanceOperationRequest;
 import com.example.transactionservice.dto.response.ApiResponse;
 import com.example.transactionservice.dto.response.WalletResponse;
@@ -11,10 +12,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
 
-@FeignClient(name = "wallet-service", url = "${wallet.service.url:http://localhost:8082}")
+@FeignClient(name = "wallet-service", url = "${wallet.service.url:http://localhost:8082}", configuration = FeignClientConfig.class)
 public interface WalletClient {
 
-    @GetMapping("/api/v1/wallets/user/{userId}")
+    @GetMapping("/api/v1/wallets/internal/user/{userId}")
     ApiResponse<WalletResponse> getWalletByUserId(@PathVariable("userId") UUID userId);
 
     @PostMapping("/api/v1/wallets/internal/deduct")

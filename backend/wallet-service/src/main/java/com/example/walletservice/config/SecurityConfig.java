@@ -1,5 +1,6 @@
 package com.example.walletservice.config;
 
+import com.example.walletservice.security.InternalAuthFilter;
 import com.example.walletservice.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final InternalAuthFilter internalAuthFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -31,10 +33,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/**",
-                                "/api/v1/wallets/internal/**" // Public / Inter-service internal endpoints for Saga Pattern
+                                "/api/v1/wallets/internal/**" // Handled & protected by InternalAuthFilter
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
+                .addFilterBefore(internalAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

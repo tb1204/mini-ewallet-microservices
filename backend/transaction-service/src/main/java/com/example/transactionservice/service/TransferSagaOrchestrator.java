@@ -126,23 +126,52 @@ public class TransferSagaOrchestrator {
         } catch (Exception e) {
             log.error("Saga Step 2 Failed (Deposit Receiver). Initiating Compensating Rollback... Error: {}", e.getMessage());
 
-            // 8. Compensating Action (Rollback): Refund money back to Sender Wallet
+            // 8. Compensating Action (Rollback): Refund money back to Sender Wallet with retry
             if (senderDeducted) {
-                try {
-                    BalanceOperationRequest refundRequest = BalanceOperationRequest.builder()
-                            .userId(senderUserId)
-                            .amount(request.getAmount())
-                            .transactionId(savedTx.getId().toString() + "-ROLLBACK")
-                            .build();
+                boolean refundSuccess = false;
+                int maxRetries = 3;
+                BalanceOperationRequest refundRequest = BalanceOperationRequest.builder()
+                        .userId(senderUserId)
+                        .amount(request.getAmount())
+                        .transactionId(savedTx.getId().toString() + "-ROLLBACK")
+                        .build();
 
-                    walletClient.depositInternal(refundRequest);
-                    log.info("Saga Compensating Rollback Executed Successfully for sender {}", senderUserId);
-                } catch (Exception rollbackEx) {
-                    log.error("CRITICAL: Saga Rollback Failed for sender {}: {}", senderUserId, rollbackEx.getMessage());
+                for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                    try {
+                        log.info("Attempting Saga Compensating Rollback (Attempt {}/{}) for sender {}", 
+                                attempt, maxRetries, senderUserId);
+                        ApiResponse<WalletResponse> refundRes = walletClient.depositInternal(refundRequest);
+                        if (refundRes != null && refundRes.getCode() == 1000) {
+                            refundSuccess = true;
+                            log.info("Saga Compensating Rollback Executed Successfully for sender {}", senderUserId);
+                            break;
+                        }
+                    } catch (Exception rollbackEx) {
+                        log.warn("Saga Rollback attempt {} failed for sender {}: {}", attempt, senderUserId, rollbackEx.getMessage());
+                        if (attempt < maxRetries) {
+                            try {
+                                Thread.sleep(200L * attempt);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
+                        }
+                    }
                 }
+
+                if (refundSuccess) {
+                    savedTx.setStatus(TransactionStatus.FAILED);
+                    savedTx.setDescription(savedTx.getDescription() + " (Đã hoàn tiền về ví người gửi do giao dịch lỗi)");
+                } else {
+                    log.error("CRITICAL ALARM: Saga Rollback FAILED after {} attempts for sender {}. Transaction ID: {}. Requires manual reconciliation!",
+                            maxRetries, senderUserId, savedTx.getId());
+                    savedTx.setStatus(TransactionStatus.COMPENSATING_FAILED);
+                    savedTx.setDescription(savedTx.getDescription() + " (CẢNH BÁO: Trừ tiền thành công nhưng hoàn tiền thất bại)");
+                }
+            } else {
+                savedTx.setStatus(TransactionStatus.FAILED);
             }
 
-            savedTx.setStatus(TransactionStatus.FAILED);
             return transactionRepository.save(savedTx);
         }
     }

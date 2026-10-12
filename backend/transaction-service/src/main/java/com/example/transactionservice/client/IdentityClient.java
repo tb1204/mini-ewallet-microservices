@@ -1,5 +1,6 @@
 package com.example.transactionservice.client;
 
+import com.example.transactionservice.config.FeignClientConfig;
 import com.example.transactionservice.dto.request.VerifyPinRequest;
 import com.example.transactionservice.dto.response.ApiResponse;
 import com.example.transactionservice.dto.response.UserResponse;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.UUID;
 
-@FeignClient(name = "identity-service", url = "${identity.service.url:http://localhost:8081}")
+@FeignClient(name = "identity-service", url = "${identity.service.url:http://localhost:8081}", configuration = FeignClientConfig.class)
 public interface IdentityClient {
 
     @GetMapping("/api/v1/users/search/{identifier}")

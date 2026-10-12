@@ -30,7 +30,18 @@ CREATE TABLE IF NOT EXISTS savings_accounts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Seed Initial Data (Thay thế w/s bằng hex hợp lệ d11/d22/d33/e11/e22)
+-- 4. Create Wallet Operations Table (Idempotency Ledger)
+CREATE TABLE IF NOT EXISTS wallet_operations (
+    id BIGSERIAL PRIMARY KEY,
+    operation_key VARCHAR(100) UNIQUE NOT NULL,
+    wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    operation_type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Seed Initial Data (Thay thế w/s bằng hex hợp lệ d11/d22/d33/e11/e22)
 INSERT INTO wallets
 (id, user_id, balance, currency, status)
 VALUES
