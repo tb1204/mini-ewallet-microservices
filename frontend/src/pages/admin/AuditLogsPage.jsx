@@ -94,6 +94,28 @@ const mockEnterpriseAuditLogs = [
   }
 ];
 
+const getActionBadgeClass = (action, badgeClass) => {
+  if (badgeClass) return badgeClass;
+  if (!action) return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
+  const upper = action.toUpperCase();
+  if (upper.includes('UNLOCK') || upper.includes('ACTIVE') || upper.includes('SUCCESS') || upper.includes('MỞ KHÓA')) {
+    return 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20';
+  }
+  if (upper.includes('LOCK') || upper.includes('DELETE') || upper.includes('FAILED') || upper.includes('BLOCK') || upper.includes('KHÓA')) {
+    return 'bg-red-500/10 text-red-600 border-red-500/20';
+  }
+  if (upper.includes('ROLE') || upper.includes('PERMISSION') || upper.includes('USER') || upper.includes('VAI TRÒ')) {
+    return 'bg-blue-500/10 text-blue-600 border-blue-500/20';
+  }
+  if (upper.includes('FREEZE') || upper.includes('WARNING') || upper.includes('LIMIT') || upper.includes('ĐÓNG BĂNG')) {
+    return 'bg-amber-500/10 text-amber-600 border-amber-500/20';
+  }
+  if (upper.includes('CONFIG') || upper.includes('SETTING') || upper.includes('CẤU HÌNH')) {
+    return 'bg-purple-500/10 text-purple-600 border-purple-500/20';
+  }
+  return 'bg-slate-500/10 text-slate-600 border-slate-500/20';
+};
+
 /**
  * SYSTEM AUDIT LOGS PAGE (AuditLogsPage)
  * - Security event & admin action audit trail inspector
@@ -306,7 +328,7 @@ export default function AuditLogsPage() {
 
                       {/* Action */}
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${log.actionBadgeClass}`}>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${getActionBadgeClass(log.action, log.actionBadgeClass)}`}>
                           {log.action}
                         </span>
                       </td>
