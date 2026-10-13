@@ -1,6 +1,6 @@
 import axiosClient from './axiosClient';
 
-const TRANSACTION_SERVICE_URL = import.meta.env.VITE_TRANSACTION_SERVICE_URL || 'http://localhost:8083/api/v1/transactions';
+const TRANSACTION_SERVICE_URL = '/v1/transactions';
 
 export const transactionApi = {
   transferP2P: async ({ recipient, amount, pin, description, idempotencyKey }) => {
