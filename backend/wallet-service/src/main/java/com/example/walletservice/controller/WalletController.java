@@ -139,4 +139,51 @@ public class WalletController {
                         .build()
         );
     }
+
+    /**
+     * Admin/Staff Query: Retrieve paginated wallets with search and status filtering.
+     */
+    @GetMapping
+    public ResponseEntity<ApiResponse<java.util.List<WalletResponse>>> getAllWallets(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) com.example.walletservice.constants.WalletStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort) {
+
+        String[] sortParts = sort.split(",");
+        String sortField = sortParts[0];
+        org.springframework.data.domain.Sort.Direction direction = sortParts.length > 1 && sortParts[1].equalsIgnoreCase("asc")
+                ? org.springframework.data.domain.Sort.Direction.ASC
+                : org.springframework.data.domain.Sort.Direction.DESC;
+
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by(direction, sortField));
+        org.springframework.data.domain.Page<WalletResponse> walletPage = walletService.getAllWallets(keyword, status, pageable);
+
+        return ResponseEntity.ok(
+                ApiResponse.<java.util.List<WalletResponse>>builder()
+                        .message("Lấy danh sách ví điện tử thành công")
+                        .result(walletPage.getContent())
+                        .build()
+        );
+    }
+
+    /**
+     * Admin Action: Toggle or update wallet status.
+     */
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<WalletResponse>> updateWalletStatus(
+            @PathVariable UUID id,
+            @RequestParam(required = false) com.example.walletservice.constants.WalletStatus status) {
+        WalletResponse response = (status != null) 
+                ? walletService.updateWalletStatus(id, status)
+                : walletService.toggleWalletStatus(id);
+
+        return ResponseEntity.ok(
+                ApiResponse.<WalletResponse>builder()
+                        .message("Cập nhật trạng thái ví thành công")
+                        .result(response)
+                        .build()
+        );
+    }
 }

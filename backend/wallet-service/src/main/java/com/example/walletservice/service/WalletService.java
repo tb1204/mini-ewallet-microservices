@@ -203,4 +203,40 @@ public class WalletService {
                 .updatedAt(wallet.getUpdatedAt())
                 .build();
     }
+
+    /**
+     * Admin/Staff Query: Retrieve paginated wallets with optional keyword and status filters.
+     */
+    public org.springframework.data.domain.Page<WalletResponse> getAllWallets(
+            String keyword, WalletStatus status, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Wallet> walletsPage = walletRepository.searchWallets(keyword, status, pageable);
+        return walletsPage.map(this::mapToWalletResponse);
+    }
+
+    /**
+     * Admin Action: Toggle wallet status between ACTIVE and LOCKED.
+     */
+    @Transactional
+    public WalletResponse toggleWalletStatus(UUID walletId) {
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        WalletStatus newStatus = wallet.getStatus() == WalletStatus.ACTIVE ? WalletStatus.LOCKED : WalletStatus.ACTIVE;
+        wallet.setStatus(newStatus);
+        Wallet saved = walletRepository.save(wallet);
+        return mapToWalletResponse(saved);
+    }
+
+    /**
+     * Admin Action: Update wallet status.
+     */
+    @Transactional
+    public WalletResponse updateWalletStatus(UUID walletId, WalletStatus newStatus) {
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        wallet.setStatus(newStatus);
+        Wallet saved = walletRepository.save(wallet);
+        return mapToWalletResponse(saved);
+    }
 }

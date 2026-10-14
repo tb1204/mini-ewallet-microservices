@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWalletStore } from '../../store/useWalletStore';
+import { userApi } from '../../api';
 import { Send, CheckCircle2, ShieldCheck, UserCheck, Copy, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function TransferPage() {
-  const { user, registeredUsers, verifyPin } = useAuthStore();
-  const { balance, executeTransfer } = useWalletStore();
+  const { user, verifyPin } = useAuthStore();
+  const { balance, executeTransfer, fetchMyWallet } = useWalletStore();
   const navigate = useNavigate();
 
   const [recipient, setRecipient] = useState('');
@@ -27,22 +28,30 @@ export default function TransferPage() {
 
   useEffect(() => {
     generateIdempotencyKey();
+    fetchMyWallet();
   }, []);
 
   useEffect(() => {
-    if (!recipient) {
+    if (!recipient || recipient.trim().length < 3) {
       setRecipientName('');
       return;
     }
-    const found = registeredUsers.find(
-      (u) => u.email.toLowerCase() === recipient.toLowerCase() || u.phoneNumber === recipient
-    );
-    if (found) {
-      setRecipientName(found.fullName);
-    } else {
-      setRecipientName('');
-    }
-  }, [recipient, registeredUsers]);
+    const timer = setTimeout(async () => {
+      try {
+        const response = await userApi.searchUserByIdentifier(recipient.trim());
+        const found = response?.result || response?.data;
+        if (found && found.fullName) {
+          setRecipientName(found.fullName);
+        } else {
+          setRecipientName('');
+        }
+      } catch (e) {
+        setRecipientName('');
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [recipient]);
 
   const generateIdempotencyKey = () => {
     const uuid = 'idemp-' + 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -102,6 +111,7 @@ export default function TransferPage() {
       const tx = await executeTransfer({
         recipientEmailOrPhone: recipient,
         amount,
+        pin: pinCode,
         idempotencyKey,
         description
       });

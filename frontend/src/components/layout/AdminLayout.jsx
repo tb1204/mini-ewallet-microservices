@@ -155,7 +155,7 @@ export default function AdminLayout() {
             <span>Cấu hình</span>
           </button>
 
-          {/* Logout Button (Đăng xuất) */}
+          {/* Logout Button */}
           <button
             onClick={handleLogout}
             className="w-full py-2 px-3 rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 border border-transparent transition flex items-center justify-center gap-2 cursor-pointer"

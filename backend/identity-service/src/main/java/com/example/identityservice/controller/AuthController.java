@@ -54,6 +54,14 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Mã PIN hợp lệ", isValid));
     }
 
+    /** Authenticated POST /api/v1/auth/change-pin endpoint setting up or changing 6-digit PIN. */
+    @PostMapping("/change-pin")
+    public ResponseEntity<ApiResponse<String>> changePin(@Valid @RequestBody ChangePinRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        authService.changePin(currentUserId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật mã PIN thành công", "Mã PIN 6 số đã được lưu an toàn"));
+    }
+
     /** Authenticated POST /api/v1/auth/logout endpoint revoking active refresh tokens. */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<String>> logout() {

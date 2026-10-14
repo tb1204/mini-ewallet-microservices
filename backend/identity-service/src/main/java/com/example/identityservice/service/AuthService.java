@@ -173,6 +173,28 @@ public class AuthService {
     }
 
     /**
+     * Set up or update user's 6-digit transaction PIN.
+     */
+    @Transactional
+    public void changePin(UUID userId, ChangePinRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        // If user already has a PIN, verify the old PIN first
+        if (user.getPinHash() != null) {
+            if (request.getOldPin() == null || request.getOldPin().isBlank()) {
+                throw new AppException(ErrorCode.INVALID_PIN, "Vui lòng nhập mã PIN hiện tại");
+            }
+            if (!passwordEncoder.matches(request.getOldPin(), user.getPinHash())) {
+                throw new AppException(ErrorCode.INVALID_PIN, "Mã PIN hiện tại không chính xác");
+            }
+        }
+
+        user.setPinHash(passwordEncoder.encode(request.getNewPin()));
+        userRepository.save(user);
+    }
+
+    /**
      * Revoke user's refresh tokens upon logout.
      */
     @Transactional

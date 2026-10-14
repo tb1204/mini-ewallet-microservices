@@ -16,7 +16,7 @@ const banks = [
 
 export default function WithdrawPage() {
   const { user, verifyPin } = useAuthStore();
-  const { balance, executeWithdraw } = useWalletStore();
+  const { balance, executeWithdraw, fetchMyWallet } = useWalletStore();
   const navigate = useNavigate();
 
   const [bankName, setBankName] = useState('Vietcombank');
@@ -37,6 +37,7 @@ export default function WithdrawPage() {
 
   useEffect(() => {
     generateIdempotencyKey();
+    fetchMyWallet();
     if (user?.fullName) {
       setAccountName(user.fullName.toUpperCase());
     }
@@ -103,6 +104,7 @@ export default function WithdrawPage() {
         accountNumber,
         accountName,
         amount,
+        pin: pinCode,
         idempotencyKey
       });
 

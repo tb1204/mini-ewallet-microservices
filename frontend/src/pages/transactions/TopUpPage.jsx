@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function TopUpPage() {
   const { user, verifyPin } = useAuthStore();
-  const { executeTopUp } = useWalletStore();
+  const { executeTopUp, fetchMyWallet } = useWalletStore();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
@@ -25,6 +25,7 @@ export default function TopUpPage() {
   // Generate unique idempotency key on mount
   useEffect(() => {
     generateIdempotencyKey();
+    fetchMyWallet();
   }, []);
 
   const generateIdempotencyKey = () => {

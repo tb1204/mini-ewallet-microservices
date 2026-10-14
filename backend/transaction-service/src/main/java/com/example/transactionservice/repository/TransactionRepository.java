@@ -19,4 +19,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
     @Query("SELECT t FROM Transaction t WHERE t.senderWalletId = :walletId OR t.receiverWalletId = :walletId ORDER BY t.createdAt DESC")
     List<Transaction> findAllByWalletId(@Param("walletId") UUID walletId);
+
+    @Query("SELECT t FROM Transaction t WHERE " +
+           "(:keyword IS NULL OR :keyword = '' OR " +
+           "LOWER(t.transactionCode) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "LOWER(t.description) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "t.idempotencyKey LIKE CONCAT('%', :keyword, '%')) AND " +
+           "(:status IS NULL OR t.status = :status)")
+    org.springframework.data.domain.Page<Transaction> searchTransactions(
+            @Param("keyword") String keyword,
+            @Param("status") com.example.transactionservice.constants.TransactionStatus status,
+            org.springframework.data.domain.Pageable pageable);
 }

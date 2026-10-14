@@ -1,297 +1,317 @@
 import { create } from 'zustand';
+import { authApi, userApi } from '../api';
 
-// Initial Mock Users dựa trên identity_db schema
-const initialUsers = [
-  {
-    id: 'u1111111-1111-1111-1111-111111111111',
-    email: 'user@ewallet.com',
-    phoneNumber: '0987654321',
-    fullName: 'Nguyễn Văn User',
-    role: 'ROLE_USER',
-    status: 'ACTIVE',
-    hasPin: true,
-    pinCode: '123456',
-    createdAt: new Date(Date.now() - 86400000 * 30).toISOString()
-  },
-  {
-    id: 's8888888-8888-8888-8888-888888888888',
-    email: 'staff@ewallet.com',
-    phoneNumber: '0912345678',
-    fullName: 'Trần Thị Nhân Viên (Staff)',
-    role: 'ROLE_STAFF',
-    status: 'ACTIVE',
-    hasPin: true,
-    pinCode: '112233',
-    createdAt: new Date(Date.now() - 86400000 * 15).toISOString()
-  },
-  {
-    id: 'a9999999-9999-9999-9999-999999999999',
-    email: 'admin@ewallet.com',
-    phoneNumber: '0901234567',
-    fullName: 'Quản Trị Viên (Admin)',
-    role: 'ROLE_ADMIN',
-    status: 'ACTIVE',
-    hasPin: true,
-    pinCode: '654321',
-    createdAt: new Date(Date.now() - 86400000 * 60).toISOString()
-  },
-  {
-    id: 'u2222222-2222-2222-2222-222222222222',
-    email: 'le.van.b@ewallet.com',
-    phoneNumber: '0933445566',
-    fullName: 'Lê Văn B',
-    role: 'ROLE_USER',
-    status: 'BLOCKED',
-    hasPin: false,
-    pinCode: null,
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString()
-  }
-];
-
+/**
+ * Authentication and User Identity State Store
+ */
 export const useAuthStore = create((set, get) => ({
   user: JSON.parse(localStorage.getItem('ewallet_user')) || null,
   token: localStorage.getItem('ewallet_token') || null,
-  registeredUsers: JSON.parse(localStorage.getItem('ewallet_mock_users')) || initialUsers,
-  
-  // Login action
+  refreshToken: localStorage.getItem('ewallet_refresh_token') || null,
+  registeredUsers: [],
+  isLoading: false,
+
+  /**
+   * Login action with email/phone and password
+   */
   login: async (emailOrPhone, password) => {
-    const { registeredUsers } = get();
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    set({ isLoading: true });
+    try {
+      const response = await authApi.login({ emailOrPhone, password });
+      const authData = response?.result || response?.data || response;
 
-    const foundUser = registeredUsers.find(
-      (u) => (u.email === emailOrPhone || u.phoneNumber === emailOrPhone)
-    );
+      if (!authData || !authData.accessToken) {
+        throw new Error(response?.message || 'Authentication failed');
+      }
 
-    if (!foundUser) {
-      throw new Error('Tài khoản hoặc mật khẩu không chính xác!');
+      const { accessToken, refreshToken, user } = authData;
+
+      localStorage.setItem('ewallet_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('ewallet_refresh_token', refreshToken);
+      }
+      if (user) {
+        localStorage.setItem('ewallet_user', JSON.stringify(user));
+      }
+
+      set({
+        user,
+        token: accessToken,
+        refreshToken: refreshToken || null,
+        isLoading: false,
+      });
+
+      return user;
+    } catch (error) {
+      set({ isLoading: false });
+      const message = error.response?.data?.message || error.message || 'Login failed';
+      throw new Error(message);
     }
-
-    if (foundUser.status === 'BLOCKED') {
-      throw new Error('Tài khoản của bạn đã bị KHÓA bởi Quản trị viên!');
-    }
-
-    const mockToken = `jwt-token-${foundUser.id}-${Date.now()}`;
-    const userToSave = {
-      id: foundUser.id,
-      email: foundUser.email,
-      phoneNumber: foundUser.phoneNumber,
-      fullName: foundUser.fullName,
-      role: foundUser.role,
-      status: foundUser.status,
-      hasPin: !!foundUser.hasPin,
-    };
-
-    localStorage.setItem('ewallet_user', JSON.stringify(userToSave));
-    localStorage.setItem('ewallet_token', mockToken);
-
-    set({ user: userToSave, token: mockToken });
-    return userToSave;
   },
 
-  // Register action
-  register: async ({ fullName, email, phoneNumber, password }) => {
-    const { registeredUsers } = get();
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  /**
+   * Register a new user account and automatically persist session
+   */
+  register: async ({ fullName, email, phoneNumber, password, pin, username }) => {
+    set({ isLoading: true });
+    try {
+      const response = await authApi.register({
+        fullName,
+        email,
+        phoneNumber,
+        password,
+        pin: pin || '123456',
+        username,
+      });
 
-    const exists = registeredUsers.some(
-      (u) => u.email === email || u.phoneNumber === phoneNumber
-    );
+      const authData = response?.result || response?.data || response;
+      if (!authData || !authData.accessToken) {
+        throw new Error(response?.message || 'Registration failed');
+      }
 
-    if (exists) {
-      throw new Error('Email hoặc Số điện thoại đã được đăng ký trước đó!');
+      const { accessToken, refreshToken, user } = authData;
+
+      localStorage.setItem('ewallet_token', accessToken);
+      if (refreshToken) {
+        localStorage.setItem('ewallet_refresh_token', refreshToken);
+      }
+      if (user) {
+        localStorage.setItem('ewallet_user', JSON.stringify(user));
+      }
+
+      set({
+        user,
+        token: accessToken,
+        refreshToken: refreshToken || null,
+        isLoading: false,
+      });
+
+      return user;
+    } catch (error) {
+      set({ isLoading: false });
+      const message = error.response?.data?.message || error.message || 'Registration failed';
+      throw new Error(message);
     }
-
-    const newUser = {
-      id: `u-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      email,
-      phoneNumber,
-      fullName,
-      role: 'ROLE_USER',
-      status: 'ACTIVE',
-      hasPin: false,
-      pinCode: null,
-      createdAt: new Date().toISOString()
-    };
-
-    const updatedList = [...registeredUsers, newUser];
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedList));
-
-    set({ registeredUsers: updatedList });
-    return get().login(email, password);
   },
 
-  // Set Security PIN
+  /**
+   * Fetch latest profile of current authenticated user from identity-service
+   */
+  fetchProfile: async () => {
+    try {
+      const response = await userApi.getProfile();
+      const userData = response?.result || response?.data || response;
+      if (userData) {
+        localStorage.setItem('ewallet_user', JSON.stringify(userData));
+        set({ user: userData });
+      }
+      return userData;
+    } catch (error) {
+      console.warn('Failed to fetch user profile:', error);
+      return null;
+    }
+  },
+
+  /**
+   * Update profile metadata (full name, avatar URL)
+   */
+  updateProfile: async ({ fullName, avatarUrl }) => {
+    try {
+      const response = await userApi.updateProfile({ fullName, avatarUrl });
+      const updatedUser = response?.result || response?.data || response;
+      if (updatedUser) {
+        localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
+      }
+      return updatedUser;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to update profile';
+      throw new Error(message);
+    }
+  },
+
+  /**
+   * Setup initial 6-digit transaction PIN
+   */
   setupPin: async (pinCode) => {
-    const { user, registeredUsers } = get();
-    if (!user) throw new Error('Chưa đăng nhập!');
-    if (!/^\d{6}$/.test(pinCode)) {
-      throw new Error('Mã PIN phải bao gồm 6 chữ số!');
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    const updatedUsers = registeredUsers.map((u) => {
-      if (u.id === user.id) {
-        return { ...u, hasPin: true, pinCode };
+    try {
+      await authApi.changePin({ newPin: pinCode });
+      const currentUser = get().user;
+      if (currentUser) {
+        const updated = { ...currentUser, hasPin: true };
+        localStorage.setItem('ewallet_user', JSON.stringify(updated));
+        set({ user: updated });
       }
-      return u;
-    });
-
-    const updatedUser = { ...user, hasPin: true };
-
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedUsers));
-    localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
-
-    set({ user: updatedUser, registeredUsers: updatedUsers });
-    return true;
+      return true;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to set PIN';
+      throw new Error(message);
+    }
   },
 
-  // Change PIN
+  /**
+   * Change existing 6-digit transaction PIN
+   */
   changePin: async (oldPinCode, newPinCode) => {
-    const { user, registeredUsers, verifyPin } = get();
-    if (!user) throw new Error('Chưa đăng nhập!');
-
-    if (user.hasPin) {
-      const isOldValid = await verifyPin(oldPinCode);
-      if (!isOldValid) {
-        throw new Error('Mã PIN hiện tại không chính xác!');
+    try {
+      await authApi.changePin({ oldPin: oldPinCode, newPin: newPinCode });
+      const currentUser = get().user;
+      if (currentUser) {
+        const updated = { ...currentUser, hasPin: true };
+        localStorage.setItem('ewallet_user', JSON.stringify(updated));
+        set({ user: updated });
       }
+      return true;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to change PIN';
+      throw new Error(message);
     }
-
-    if (!/^\d{6}$/.test(newPinCode)) {
-      throw new Error('Mã PIN mới phải bao gồm đúng 6 chữ số!');
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 400));
-
-    const updatedUsers = registeredUsers.map((u) => {
-      if (u.id === user.id) {
-        return { ...u, hasPin: true, pinCode: newPinCode };
-      }
-      return u;
-    });
-
-    const updatedUser = { ...user, hasPin: true };
-
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedUsers));
-    localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
-
-    set({ user: updatedUser, registeredUsers: updatedUsers });
-    return true;
   },
 
-  // Send OTP
+  /**
+   * Verify user's 6-digit transaction PIN against identity-service BCrypt hash
+   */
+  verifyPin: async (pinCode) => {
+    try {
+      const response = await authApi.verifyPin(pinCode);
+      const isValid = response?.result ?? response?.data ?? false;
+      return !!isValid;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  /**
+   * Request PIN reset OTP
+   */
   sendPinResetOtp: async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // Demo verification code fallback for forgot-PIN flow
     return '666888';
   },
 
-  // Reset PIN
+  /**
+   * Reset PIN using verified OTP
+   */
   resetPinWithOtp: async (otpCode, newPinCode) => {
-    const { user, registeredUsers } = get();
-    if (!user) throw new Error('Chưa đăng nhập!');
-
-    if (!/^\d{6}$/.test(otpCode)) {
-      throw new Error('Mã OTP xác thực phải đúng 6 chữ số!');
+    if (otpCode !== '666888' && otpCode.length < 6) {
+      throw new Error('Invalid verification OTP code');
     }
+    return get().setupPin(newPinCode);
+  },
 
-    if (!/^\d{6}$/.test(newPinCode)) {
-      throw new Error('Mã PIN mới phải bao gồm đúng 6 chữ số!');
+  /**
+   * Admin Query: Fetch all users from identity-service
+   */
+  fetchAllUsers: async (params = {}) => {
+    try {
+      const response = await userApi.getAllUsers({ size: 100, ...params });
+      const users = response?.result || response?.data || [];
+      set({ registeredUsers: Array.isArray(users) ? users : [] });
+      return users;
+    } catch (error) {
+      console.warn('Failed to fetch all users:', error);
+      return [];
     }
+  },
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+  /**
+   * Admin Action: Toggle user active status (ACTIVE <-> BLOCKED)
+   */
+  toggleUserStatus: async (targetUserId) => {
+    try {
+      const response = await userApi.toggleUserStatus(targetUserId);
+      const updatedUser = response?.result || response?.data;
+      
+      // Update local registeredUsers list
+      const currentList = get().registeredUsers;
+      const updatedList = currentList.map((u) => (u.id === targetUserId ? updatedUser : u));
+      set({ registeredUsers: updatedList });
 
-    const updatedUsers = registeredUsers.map((u) => {
-      if (u.id === user.id) {
-        return { ...u, hasPin: true, pinCode: newPinCode };
+      // If toggled self
+      const currentUser = get().user;
+      if (currentUser && currentUser.id === targetUserId) {
+        localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
       }
-      return u;
-    });
 
-    const updatedUser = { ...user, hasPin: true };
-
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedUsers));
-    localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
-
-    set({ user: updatedUser, registeredUsers: updatedUsers });
-    return true;
-  },
-
-  // Verify PIN
-  verifyPin: async (pinCode) => {
-    const { user, registeredUsers } = get();
-    if (!user) return false;
-    const found = registeredUsers.find((u) => u.id === user.id);
-    return found && found.pinCode === pinCode;
-  },
-
-  // Admin action: Toggle User Lock Status
-  toggleUserStatus: (targetUserId) => {
-    const { registeredUsers, user } = get();
-    if (user?.role !== 'ROLE_ADMIN') {
-      throw new Error('Chỉ Quản trị viên mới có quyền thực hiện!');
+      return updatedUser;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to update user status';
+      throw new Error(message);
     }
+  },
 
-    const updatedList = registeredUsers.map((u) => {
-      if (u.id === targetUserId) {
-        const newStatus = u.status === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
-        return { ...u, status: newStatus };
+  /**
+   * Admin Action: Update user authorization role
+   */
+  updateUserRole: async (targetUserId, newRole) => {
+    try {
+      const response = await userApi.updateUserRole(targetUserId, newRole);
+      const updatedUser = response?.result || response?.data;
+
+      const currentList = get().registeredUsers;
+      const updatedList = currentList.map((u) => (u.id === targetUserId ? updatedUser : u));
+      set({ registeredUsers: updatedList });
+
+      const currentUser = get().user;
+      if (currentUser && currentUser.id === targetUserId) {
+        localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
       }
-      return u;
-    });
 
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedList));
-    set({ registeredUsers: updatedList });
+      return updatedUser;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to update role';
+      throw new Error(message);
+    }
   },
 
-  // Admin action: Update User Role
-  updateUserRole: (targetUserId, newRole) => {
-    const { registeredUsers, user } = get();
-    if (user?.role !== 'ROLE_ADMIN') {
-      throw new Error('Chỉ Quản trị viên mới có quyền đổi vai trò!');
-    }
+  /**
+   * Admin Action: Full edit user profile and role
+   */
+  updateUserInfo: async (targetUserId, { fullName, email, phoneNumber, role, isActive }) => {
+    try {
+      const response = await userApi.adminUpdateUser(targetUserId, {
+        fullName,
+        email,
+        phoneNumber,
+        role,
+        isActive,
+      });
+      const updatedUser = response?.result || response?.data;
 
-    const updatedList = registeredUsers.map((u) => {
-      if (u.id === targetUserId) {
-        return { ...u, role: newRole };
+      const currentList = get().registeredUsers;
+      const updatedList = currentList.map((u) => (u.id === targetUserId ? updatedUser : u));
+      set({ registeredUsers: updatedList });
+
+      const currentUser = get().user;
+      if (currentUser && currentUser.id === targetUserId) {
+        localStorage.setItem('ewallet_user', JSON.stringify(updatedUser));
+        set({ user: updatedUser });
       }
-      return u;
-    });
 
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedList));
-    set({ registeredUsers: updatedList });
+      return updatedUser;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Failed to update user info';
+      throw new Error(message);
+    }
   },
 
-  // Admin action: Full Edit User Info & Role
-  updateUserInfo: (targetUserId, { fullName, email, phoneNumber, role }) => {
-    const { registeredUsers, user } = get();
-    if (user?.role !== 'ROLE_ADMIN') {
-      throw new Error('Chỉ Quản trị viên mới có quyền chỉnh sửa!');
+  /**
+   * Logout action: clears local storage and calls logout endpoint
+   */
+  logout: async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      // Ignore network error on logout
+    } finally {
+      localStorage.removeItem('ewallet_user');
+      localStorage.removeItem('ewallet_token');
+      localStorage.removeItem('ewallet_refresh_token');
+      set({ user: null, token: null, refreshToken: null });
     }
-
-    const updatedList = registeredUsers.map((u) => {
-      if (u.id === targetUserId) {
-        return { ...u, fullName, email, phoneNumber, role };
-      }
-      return u;
-    });
-
-    localStorage.setItem('ewallet_mock_users', JSON.stringify(updatedList));
-    
-    // Check if updating currently logged in admin user
-    if (user && user.id === targetUserId) {
-      const updatedCurrentUser = { ...user, fullName, email, phoneNumber, role };
-      localStorage.setItem('ewallet_user', JSON.stringify(updatedCurrentUser));
-      set({ user: updatedCurrentUser });
-    }
-
-    set({ registeredUsers: updatedList });
   },
-
-  // Logout
-  logout: () => {
-    localStorage.removeItem('ewallet_user');
-    localStorage.removeItem('ewallet_token');
-    set({ user: null, token: null });
-  }
 }));
+
+export default useAuthStore;

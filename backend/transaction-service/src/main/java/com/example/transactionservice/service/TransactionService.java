@@ -145,4 +145,13 @@ public class TransactionService {
                 .createdAt(tx.getCreatedAt())
                 .build();
     }
+
+    /**
+     * Admin/Staff Query: Retrieve paginated system transactions with keyword and status filters.
+     */
+    public org.springframework.data.domain.Page<TransactionResponse> getAllTransactions(
+            String keyword, com.example.transactionservice.constants.TransactionStatus status, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Transaction> page = transactionRepository.searchTransactions(keyword, status, pageable);
+        return page.map(this::mapToTransactionResponse);
+    }
 }

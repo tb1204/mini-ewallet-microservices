@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
-import { Wallet, User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, Sun, Moon } from 'lucide-react';
+import { Wallet, User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, Sun, Moon, ShieldCheck } from 'lucide-react';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -10,6 +10,7 @@ export default function RegisterPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -22,7 +23,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!fullName || !email || !phoneNumber || !password) {
+    if (!fullName || !email || !phoneNumber || !password || !pin) {
       setError('Vui lòng điền đầy đủ tất cả thông tin!');
       return;
     }
@@ -37,11 +38,20 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!/^\d{6}$/.test(pin)) {
+      setError('Mã PIN giao dịch phải bao gồm đúng 6 chữ số!');
+      return;
+    }
+
     try {
       setLoading(true);
-      // Mặc định luôn đăng ký với vai trò ROLE_USER
-      await register({ fullName, email, phoneNumber, password });
-      navigate('/security'); // Chuyển đến trang cài đặt PIN cho tài khoản mới
+      // Register with ROLE_USER and 6-digit transaction PIN
+      const user = await register({ fullName, email, phoneNumber, password, pin });
+      if (user?.role === 'ROLE_ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Đăng ký thất bại!');
     } finally {
@@ -61,30 +71,28 @@ export default function RegisterPage() {
       </button>
 
       <div className="w-full max-w-md">
-        
-        {/* Header */}
+        {/* Header Logo */}
         <div className="text-center mb-6">
           <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center mx-auto mb-3 text-white">
             <Wallet className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            Đăng Ký Tài Khoản Ví
+            Đăng Ký Ví Điện Tử
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Mặc định khởi tạo tài khoản người dùng (`ROLE_USER`)
+          <p className="text-slate-400 text-xs mt-1">
+            Khởi tạo ví số an toàn & trải nghiệm dịch vụ tài chính hiện đại
           </p>
         </div>
 
-        {/* Register Card */}
-        <div className="clean-card p-6 sm:p-8 shadow-lg">
+        {/* Card Form */}
+        <div className="clean-card rounded-2xl p-6 sm:p-8 shadow-xl">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
-              ⚠️ {error}
+            <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium">
+              {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             {/* Full Name */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -109,7 +117,7 @@ export default function RegisterPage() {
             {/* Email */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Email
+                Địa Chỉ Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -197,12 +205,37 @@ export default function RegisterPage() {
               </div>
             </div>
 
+            {/* 6-digit Transaction PIN */}
+            <div>
+              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                Mã PIN Giao Dịch (6 chữ số)
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <input
+                  id="input-register-pin"
+                  type="password"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-full clean-input pl-9 pr-3 py-2.5 text-sm tracking-widest font-mono"
+                  required
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Dùng để bảo mật và xác nhận mỗi khi nạp, rút hoặc chuyển tiền.
+              </p>
+            </div>
+
             {/* Submit */}
             <button
               id="btn-register-submit"
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer"
             >
               {loading ? (
                 <span>Đang xử lý...</span>

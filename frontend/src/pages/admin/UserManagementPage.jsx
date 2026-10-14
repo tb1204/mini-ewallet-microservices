@@ -1,21 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { 
   Users, Search, CheckCircle2, Eye, Edit3, Lock, Unlock, X, 
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight 
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, AlertCircle 
 } from 'lucide-react';
 
 /**
  * USER MANAGEMENT PAGE (UserManagementPage)
  * - Standard 7-Column Table Layout: ID, Full Name, Email, Phone Number, Role, Status, Actions
+ * - Connected directly to identity-service endpoints via useAuthStore / userApi
  * - Integrated Multi-field Search (ID, Name, Email, Phone) & Dual Filter (Status + Role)
  * - 3-State Sorting Mechanism (Default createdAt DESC -> ASC -> DESC -> Default)
  * - Vietnamese alphabetical sorting support (localeCompare) & Client-side Pagination (5, 10, 20)
  * - Direct User Account Lock/Unlock & User Information / Role Edit Modal
  */
 export default function UserManagementPage() {
-  const { registeredUsers, toggleUserStatus, updateUserInfo, user: currentUser } = useAuthStore();
+  const { registeredUsers, fetchAllUsers, toggleUserStatus, updateUserInfo, user: currentUser } = useAuthStore();
   
+  // Loading and Error States
+  const [isFetching, setIsFetching] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
   // Search & Filter States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -42,37 +48,72 @@ export default function UserManagementPage() {
     role: 'ROLE_USER'
   });
 
-  const handleToggleStatus = (targetId, name, currentStatus) => {
+  // Fetch all users on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadUsers = async () => {
+      setIsFetching(true);
+      setErrorMessage('');
+      try {
+        await fetchAllUsers();
+      } catch (err) {
+        if (isMounted) {
+          console.error('Failed to fetch users:', err);
+          setErrorMessage('Không thể tải danh sách người dùng từ hệ thống.');
+        }
+      } finally {
+        if (isMounted) setIsFetching(false);
+      }
+    };
+
+    loadUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAllUsers]);
+
+  const handleToggleStatus = async (targetId, name, currentStatus) => {
+    setIsActionLoading(true);
+    setErrorMessage('');
     try {
-      toggleUserStatus(targetId);
+      await toggleUserStatus(targetId);
       const newStatus = currentStatus === 'ACTIVE' ? 'Đã khóa' : 'Đã mở khóa';
       setMsg(`Trạng thái tài khoản "${name}": ${newStatus}`);
       setTimeout(() => setMsg(''), 3000);
     } catch (err) {
-      alert(err.message);
+      console.error('Failed to toggle user status:', err);
+      setErrorMessage(err.message || 'Lỗi khi thay đổi trạng thái tài khoản');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
   const handleOpenEdit = (userToEdit) => {
     setEditingUser(userToEdit);
     setFormData({
-      fullName: userToEdit.fullName,
-      email: userToEdit.email,
-      phoneNumber: userToEdit.phoneNumber,
-      role: userToEdit.role
+      fullName: userToEdit.fullName || '',
+      email: userToEdit.email || '',
+      phoneNumber: userToEdit.phoneNumber || '',
+      role: userToEdit.role || 'ROLE_USER'
     });
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    setIsActionLoading(true);
+    setErrorMessage('');
     try {
-      updateUserInfo(editingUser.id, formData);
+      await updateUserInfo(editingUser.id, formData);
       setMsg(`Đã cập nhật thông tin cho "${formData.fullName}"!`);
       setEditingUser(null);
       setTimeout(() => setMsg(''), 3000);
     } catch (err) {
-      alert(err.message);
+      console.error('Failed to update user:', err);
+      setErrorMessage(err.message || 'Lỗi khi cập nhật thông tin người dùng');
+    } finally {
+      setIsActionLoading(false);
     }
   };
 
@@ -164,6 +205,14 @@ export default function UserManagementPage() {
         <div className="clean-card p-3 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-xs flex items-center gap-2 rounded-lg">
           <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           {msg}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="clean-card p-3 bg-red-500/10 border-red-500/30 text-red-600 text-xs flex items-center gap-2 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          {errorMessage}
         </div>
       )}
 
@@ -298,7 +347,16 @@ export default function UserManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-main)]">
-              {paginatedUsers.length > 0 ? (
+              {isFetching ? (
+                <tr>
+                  <td colSpan="7" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                      <span>Đang tải danh sách người dùng...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedUsers.length > 0 ? (
                 paginatedUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-[var(--table-hover-bg)] transition">
                     
@@ -376,8 +434,9 @@ export default function UserManagementPage() {
 
                         {u.id !== currentUser?.id ? (
                           <button
+                            disabled={isActionLoading}
                             onClick={() => handleToggleStatus(u.id, u.fullName, u.status)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition cursor-pointer ${
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition cursor-pointer disabled:opacity-50 ${
                               u.status === 'ACTIVE'
                                 ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/20'
                                 : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-emerald-500/20'
@@ -628,8 +687,10 @@ export default function UserManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition cursor-pointer"
+                  disabled={isActionLoading}
+                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                 >
+                  {isActionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Lưu Thay Đổi
                 </button>
               </div>

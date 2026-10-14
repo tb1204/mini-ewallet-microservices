@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWalletStore } from '../../store/useWalletStore';
 import { Link } from 'react-router-dom';
@@ -10,7 +10,12 @@ import SpendingStatsWidget from '../../components/dashboard/SpendingStatsWidget'
 
 export default function UserDashboardPage() {
   const { user, verifyPin } = useAuthStore();
-  const { balance, status: walletStatus, version } = useWalletStore();
+  const { balance, status: walletStatus, version, fetchMyWallet, fetchTransactions } = useWalletStore();
+
+  useEffect(() => {
+    fetchMyWallet();
+    fetchTransactions();
+  }, []);
 
   // Balance unlock state (requires PIN on first reveal after login)
   const [isBalanceUnlocked, setIsBalanceUnlocked] = useState(false);

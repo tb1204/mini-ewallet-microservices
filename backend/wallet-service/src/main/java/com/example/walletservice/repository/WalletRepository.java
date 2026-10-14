@@ -27,4 +27,15 @@ public interface WalletRepository extends JpaRepository<Wallet, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM Wallet w WHERE w.userId = :userId")
     Optional<Wallet> findByUserIdWithLock(@Param("userId") UUID userId);
+
+    /** Search all wallets with optional keyword (wallet ID or user ID) and status filters. */
+    @Query("SELECT w FROM Wallet w WHERE " +
+           "(:keyword IS NULL OR :keyword = '' OR " +
+           "CAST(w.id AS string) LIKE CONCAT('%', :keyword, '%') OR " +
+           "CAST(w.userId AS string) LIKE CONCAT('%', :keyword, '%')) AND " +
+           "(:status IS NULL OR w.status = :status)")
+    org.springframework.data.domain.Page<Wallet> searchWallets(
+            @Param("keyword") String keyword,
+            @Param("status") com.example.walletservice.constants.WalletStatus status,
+            org.springframework.data.domain.Pageable pageable);
 }

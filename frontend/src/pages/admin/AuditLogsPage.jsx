@@ -1,98 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   FileText, Code, Search, RefreshCcw, ChevronRight,
   ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight as ChevronRightIcon 
 } from 'lucide-react';
-
-const mockEnterpriseAuditLogs = [
-  {
-    id: 'audit-001',
-    timeStr: '10:05:22',
-    fullTimestamp: new Date(Date.now() - 300000).toISOString(),
-    performer: 'Quản Trị Viên (Admin)',
-    performerRole: 'ROLE_ADMIN',
-    action: 'MỞ KHÓA USER',
-    actionBadgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-    targetUser: 'user456 (Lê Văn B)',
-    serviceName: 'identity-service',
-    payload: {
-      action: 'UNLOCK_ACCOUNT',
-      targetUserId: 'u2222222-2222-2222-2222-222222222222',
-      reason: 'Đã xác minh giấy tờ tùy thân',
-      adminIp: '192.168.1.100'
-    }
-  },
-  {
-    id: 'audit-002',
-    timeStr: '10:00:15',
-    fullTimestamp: new Date(Date.now() - 600000).toISOString(),
-    performer: 'Quản Trị Viên (Admin)',
-    performerRole: 'ROLE_ADMIN',
-    action: 'KHÓA USER',
-    actionBadgeClass: 'bg-red-500/10 text-red-600 border-red-500/20',
-    targetUser: 'user123 (Nguyễn Văn User)',
-    serviceName: 'identity-service',
-    payload: {
-      action: 'LOCK_ACCOUNT',
-      targetUserId: 'u1111111-1111-1111-1111-111111111111',
-      reason: 'Nhập sai mã PIN quá số lần cho phép',
-      adminIp: '192.168.1.100'
-    }
-  },
-  {
-    id: 'audit-003',
-    timeStr: '09:45:00',
-    fullTimestamp: new Date(Date.now() - 1500000).toISOString(),
-    performer: 'Quản Trị Viên (Admin)',
-    performerRole: 'ROLE_ADMIN',
-    action: 'ĐỔI VAI TRÒ',
-    actionBadgeClass: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
-    targetUser: 'staff888 (Trần Thị Nhân Viên)',
-    serviceName: 'identity-service',
-    payload: {
-      action: 'UPDATE_USER_ROLE',
-      targetUserId: 's8888888-8888-8888-8888-888888888888',
-      previousRole: 'ROLE_USER',
-      newRole: 'ROLE_STAFF',
-      updatedBy: 'admin@ewallet.com'
-    }
-  },
-  {
-    id: 'audit-004',
-    timeStr: '09:12:40',
-    fullTimestamp: new Date(Date.now() - 3600000).toISOString(),
-    performer: 'Trần Thị Nhân Viên (Staff)',
-    performerRole: 'ROLE_STAFF',
-    action: 'KHÓA VÍ',
-    actionBadgeClass: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-    targetUser: 'w-303-user-blocked (Lê Văn B)',
-    serviceName: 'wallet-service',
-    payload: {
-      action: 'FREEZE_WALLET_BALANCE',
-      walletId: 'w-303-user-blocked',
-      lockedBalance: 2100000,
-      redisLockStatus: 'SUCCESS_LOCKED'
-    }
-  },
-  {
-    id: 'audit-005',
-    timeStr: '08:30:10',
-    fullTimestamp: new Date(Date.now() - 7200000).toISOString(),
-    performer: 'Quản Trị Viên (Admin)',
-    performerRole: 'ROLE_ADMIN',
-    action: 'CẤU HÌNH THAM SỐ',
-    actionBadgeClass: 'bg-slate-500/10 text-slate-600 border-slate-500/20',
-    targetUser: 'Cấu Hình Hệ Thống',
-    serviceName: 'wallet-service',
-    payload: {
-      action: 'UPDATE_TRANSACTION_LIMITS',
-      dailyLimitVnd: 500000000,
-      maxPerTxVnd: 100000000,
-      otpThresholdVnd: 10000000,
-      maintenanceMode: false
-    }
-  }
-];
+import { auditApi } from '../../api';
 
 const getActionBadgeClass = (action, badgeClass) => {
   if (badgeClass) return badgeClass;
@@ -118,14 +29,15 @@ const getActionBadgeClass = (action, badgeClass) => {
 
 /**
  * SYSTEM AUDIT LOGS PAGE (AuditLogsPage)
- * - Security event & admin action audit trail inspector
+ * - Security event & admin action audit trail inspector connected to audit-service
  * - Full-width log data table supporting tri-state sorting & pagination
  * - Bottom JSON Event Detail Inspector displaying payload metadata dynamically on row selection
  */
 export default function AuditLogsPage() {
-  const [logs, setLogs] = useState(mockEnterpriseAuditLogs);
-  const [selectedLog, setSelectedLog] = useState(mockEnterpriseAuditLogs[0]);
+  const [logs, setLogs] = useState([]);
+  const [selectedLog, setSelectedLog] = useState(null);
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Sorting State (null means default sort by fullTimestamp desc)
   const [sortField, setSortField] = useState(null);
@@ -133,7 +45,31 @@ export default function AuditLogsPage() {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
+
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const response = await auditApi.getAuditLogs({ size: 100 });
+      const logList = response?.result || response?.data || [];
+      const safeLogs = Array.isArray(logList) ? logList : [];
+      setLogs(safeLogs);
+      if (safeLogs.length > 0) {
+        setSelectedLog(safeLogs[0]);
+      } else {
+        setSelectedLog(null);
+      }
+    } catch (error) {
+      console.warn('Failed to fetch audit logs:', error);
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLogs();
+  }, []);
 
   // 3-State Sort Handler: (none/default) -> asc -> desc -> (default)
   const handleSort = (field) => {
@@ -143,7 +79,6 @@ export default function AuditLogsPage() {
     } else if (sortOrder === 'asc') {
       setSortOrder('desc');
     } else {
-      // Third click resets back to default (fullTimestamp desc)
       setSortField(null);
       setSortOrder('asc');
     }
@@ -152,28 +87,32 @@ export default function AuditLogsPage() {
 
   // 1. Filtered Data
   const filteredLogs = useMemo(() => {
-    return logs.filter(
-      (l) =>
-        l.action.toLowerCase().includes(search.toLowerCase()) ||
-        l.performer.toLowerCase().includes(search.toLowerCase()) ||
-        l.targetUser.toLowerCase().includes(search.toLowerCase())
-    );
+    return logs.filter((l) => {
+      const actionMatch = l.action?.toLowerCase().includes(search.toLowerCase());
+      const performerMatch = l.performer?.toLowerCase().includes(search.toLowerCase());
+      const targetMatch = l.targetUser?.toLowerCase().includes(search.toLowerCase());
+      const serviceMatch = l.serviceName?.toLowerCase().includes(search.toLowerCase());
+      return actionMatch || performerMatch || targetMatch || serviceMatch;
+    });
   }, [logs, search]);
 
   // 2. Sorted Data
   const sortedLogs = useMemo(() => {
-    // Default sort by fullTimestamp desc
     if (!sortField) {
-      return [...filteredLogs].sort((a, b) => new Date(b.fullTimestamp) - new Date(a.fullTimestamp));
+      return [...filteredLogs].sort((a, b) => {
+        const timeA = new Date(a.fullTimestamp || a.createdAt).getTime();
+        const timeB = new Date(b.fullTimestamp || b.createdAt).getTime();
+        return timeB - timeA;
+      });
     }
 
     return [...filteredLogs].sort((a, b) => {
       let valA = a[sortField] ?? '';
       let valB = b[sortField] ?? '';
 
-      if (sortField === 'fullTimestamp') {
-        const dateA = new Date(valA).getTime();
-        const dateB = new Date(valB).getTime();
+      if (sortField === 'fullTimestamp' || sortField === 'createdAt') {
+        const dateA = new Date(a.fullTimestamp || a.createdAt).getTime();
+        const dateB = new Date(b.fullTimestamp || b.createdAt).getTime();
         return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
       }
 
@@ -209,34 +148,29 @@ export default function AuditLogsPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
-      
       {/* Title */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)] tracking-tight">
           <FileText className="w-5 h-5 text-amber-600" />
-          Nhật Ký Hệ Thống
+          Nhật Ký Hệ Thống (`audit_db`)
         </h1>
 
         <button
-          onClick={() => setLogs([...mockEnterpriseAuditLogs])}
-          className="px-3 py-1.5 rounded-lg clean-card-subtle text-xs font-medium flex items-center gap-1.5 hover:border-slate-400 border border-[var(--border-main)] transition cursor-pointer"
+          onClick={fetchLogs}
+          disabled={loading}
+          className="px-3 py-1.5 rounded-lg clean-card-subtle text-xs font-medium flex items-center gap-1.5 hover:border-slate-400 border border-[var(--border-main)] transition cursor-pointer disabled:opacity-50"
         >
-          <RefreshCcw className="w-3.5 h-3.5" />
-          Làm mới
+          <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          {loading ? 'Đang tải...' : 'Làm mới'}
         </button>
       </div>
 
       {/* Main Full-Width Table Card */}
       <div className="clean-card p-5 space-y-4 rounded-xl border border-[var(--border-main)]">
-        
-        {/* Table Search Toolbar */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
-            Danh Sách Nhật Ký ({filteredLogs.length})
-          </h2>
-
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-[var(--text-secondary)] absolute left-3 top-2.5" />
+        {/* Toolbar: Search input */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
@@ -244,111 +178,94 @@ export default function AuditLogsPage() {
                 setSearch(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Lọc theo Hành động, Người thực hiện, Đối tượng..."
-              className="w-full clean-input pl-9 pr-3 py-1.5 text-xs"
+              placeholder="Tìm theo hành động, người thực hiện, đối tượng..."
+              className="clean-input pl-9 pr-4 py-1.5 text-xs w-full"
             />
+          </div>
+
+          <div className="text-xs text-[var(--text-secondary)] font-mono self-end sm:self-center">
+            Tổng cộng: <strong>{filteredLogs.length}</strong> nhật ký
           </div>
         </div>
 
-        {/* Log List Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-[var(--text-primary)]">
-            <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-medium select-none">
+        {/* Audit Logs Table */}
+        <div className="overflow-x-auto border border-[var(--border-main)] rounded-lg">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-semibold select-none">
               <tr>
-                {/* Time Header */}
-                <th
+                <th 
                   onClick={() => handleSort('fullTimestamp')}
-                  className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                  className="py-2.5 px-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
-                  <div className="flex items-center gap-1">
-                    <span>Thời gian</span>
-                    {renderSortIcon('fullTimestamp')}
-                  </div>
+                  Thời Gian {renderSortIcon('fullTimestamp')}
                 </th>
-
-                {/* Performer Header */}
-                <th
+                <th 
                   onClick={() => handleSort('performer')}
-                  className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                  className="py-2.5 px-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
-                  <div className="flex items-center gap-1">
-                    <span>Người thực hiện</span>
-                    {renderSortIcon('performer')}
-                  </div>
+                  Người Thực Hiện {renderSortIcon('performer')}
                 </th>
-
-                {/* Action Header */}
-                <th
+                <th 
                   onClick={() => handleSort('action')}
-                  className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                  className="py-2.5 px-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
-                  <div className="flex items-center gap-1">
-                    <span>Hành động</span>
-                    {renderSortIcon('action')}
-                  </div>
+                  Hành Động {renderSortIcon('action')}
                 </th>
-
-                {/* Target Header */}
-                <th
+                <th 
                   onClick={() => handleSort('targetUser')}
-                  className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                  className="py-2.5 px-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
-                  <div className="flex items-center gap-1">
-                    <span>Đối tượng</span>
-                    {renderSortIcon('targetUser')}
-                  </div>
+                  Đối Tượng {renderSortIcon('targetUser')}
                 </th>
-
-                <th className="p-3 text-right">Chi tiết</th>
+                <th 
+                  onClick={() => handleSort('serviceName')}
+                  className="py-2.5 px-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                >
+                  Service {renderSortIcon('serviceName')}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-main)]">
-              {paginatedLogs.length > 0 ? (
-                paginatedLogs.map((log) => {
-                  const isSelected = selectedLog?.id === log.id;
-                  return (
-                    <tr
-                      key={log.id}
-                      onClick={() => setSelectedLog(log)}
-                      className={`cursor-pointer transition ${
-                        isSelected
-                          ? 'bg-blue-500/10 font-semibold'
-                          : 'hover:bg-[var(--table-hover-bg)]'
-                      }`}
-                    >
-                      {/* Time */}
-                      <td className="p-3 text-blue-600 font-mono whitespace-nowrap">
-                        {log.timeStr} ({new Date(log.fullTimestamp).toLocaleDateString('vi-VN')})
-                      </td>
-
-                      {/* Performer */}
-                      <td className="p-3 text-[var(--text-primary)] font-medium">
-                        {log.performer}
-                      </td>
-
-                      {/* Action */}
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${getActionBadgeClass(log.action, log.actionBadgeClass)}`}>
-                          {log.action}
-                        </span>
-                      </td>
-
-                      {/* Target User */}
-                      <td className="p-3 text-[var(--text-secondary)]">
-                        {log.targetUser}
-                      </td>
-
-                      {/* Chevron Action */}
-                      <td className="p-3 text-right">
-                        <ChevronRight className={`w-4 h-4 inline-block transition ${isSelected ? 'text-blue-600 translate-x-1' : 'text-[var(--text-muted)]'}`} />
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
+              {paginatedLogs.map((log) => {
+                const isSelected = selectedLog?.id === log.id;
+                const timestampStr = log.fullTimestamp || log.createdAt;
+                return (
+                  <tr
+                    key={log.id}
+                    onClick={() => setSelectedLog(log)}
+                    className={`cursor-pointer transition ${
+                      isSelected 
+                        ? 'bg-blue-500/10 text-[var(--text-primary)] font-medium' 
+                        : 'hover:bg-[var(--table-hover-bg)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    <td className="py-2.5 px-3 font-mono whitespace-nowrap">
+                      {timestampStr ? new Date(timestampStr).toLocaleString('vi-VN') : log.timeStr}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="font-semibold text-[var(--text-primary)]">{log.performer}</div>
+                      {log.performerRole && (
+                        <div className="text-[10px] text-[var(--text-muted)] font-mono">{log.performerRole}</div>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold border inline-block ${getActionBadgeClass(log.action, log.actionBadgeClass)}`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-[var(--text-primary)] font-medium">
+                      {log.targetUser || '-'}
+                    </td>
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--text-muted)]">
+                      {log.serviceName || 'audit-service'}
+                    </td>
+                  </tr>
+                );
+              })}
+              {paginatedLogs.length === 0 && (
                 <tr>
                   <td colSpan="5" className="text-center py-8 text-[var(--text-muted)] text-xs">
-                    Không tìm thấy bản ghi nhật ký phù hợp.
+                    {loading ? 'Đang tải danh sách nhật ký...' : 'Không tìm thấy bản ghi nhật ký phù hợp.'}
                   </td>
                 </tr>
               )}
@@ -410,10 +327,9 @@ export default function AuditLogsPage() {
             </button>
           </div>
         </div>
-
       </div>
 
-      {/* JSON Inspector Section (Full-width below the table) */}
+      {/* JSON Inspector Section */}
       <div className="clean-card p-5 space-y-4 rounded-xl border border-[var(--border-main)]">
         <h2 className="text-sm font-semibold flex items-center gap-2 border-b border-[var(--border-main)] pb-3 text-[var(--text-primary)]">
           <Code className="w-4 h-4 text-emerald-600" />
@@ -427,14 +343,14 @@ export default function AuditLogsPage() {
             </div>
 
             <div className="p-3 rounded-lg clean-card-subtle space-y-1 text-xs">
-              <div className="font-semibold text-[var(--text-primary)]">{selectedLog.action} - {selectedLog.targetUser}</div>
+              <div className="font-semibold text-[var(--text-primary)]">{selectedLog.action} - {selectedLog.targetUser || 'N/A'}</div>
               <div className="text-[11px] text-[var(--text-secondary)] font-mono">
-                Thực hiện bởi: <strong>{selectedLog.performer}</strong> • Thời gian: {new Date(selectedLog.fullTimestamp).toLocaleString('vi-VN')}
+                Thực hiện bởi: <strong>{selectedLog.performer}</strong> • Thời gian: {new Date(selectedLog.fullTimestamp || selectedLog.createdAt).toLocaleString('vi-VN')}
               </div>
             </div>
 
             <pre className="p-4 rounded-lg bg-slate-900 text-emerald-400 text-xs font-mono overflow-x-auto whitespace-pre-wrap leading-relaxed border border-slate-800 shadow-inner">
-              {JSON.stringify(selectedLog.payload, null, 2)}
+              {JSON.stringify(selectedLog.payload || selectedLog.details || selectedLog, null, 2)}
             </pre>
           </div>
         ) : (
@@ -443,7 +359,6 @@ export default function AuditLogsPage() {
           </div>
         )}
       </div>
-
     </div>
   );
 }

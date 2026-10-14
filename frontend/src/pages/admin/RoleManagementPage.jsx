@@ -1,19 +1,55 @@
-import React, { useState } from 'react';
-import { ShieldCheck, Search, CheckCircle2, UserCheck, Shield, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldCheck, Search, CheckCircle2, UserCheck, Shield, Users, Loader2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
+/**
+ * Role Management & Access Control Page (identity_db)
+ * Assign and fast switch authorization roles among ROLE_USER, ROLE_STAFF, and ROLE_ADMIN.
+ */
 export default function RoleManagementPage() {
-  const { registeredUsers, updateUserRole, user: currentUser } = useAuthStore();
+  const { registeredUsers, fetchAllUsers, updateUserRole, user: currentUser } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [msg, setMsg] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [updatingUserId, setUpdatingUserId] = useState(null);
 
-  const handleRoleChange = (userId, name, newRole) => {
+  // Fetch all users on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadUsers = async () => {
+      setIsFetching(true);
+      setErrorMessage('');
+      try {
+        await fetchAllUsers();
+      } catch (err) {
+        if (isMounted) {
+          console.error('Failed to load users for role management:', err);
+          setErrorMessage('Không thể tải danh sách người dùng từ identity-service.');
+        }
+      } finally {
+        if (isMounted) setIsFetching(false);
+      }
+    };
+
+    loadUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAllUsers]);
+
+  const handleRoleChange = async (userId, name, newRole) => {
+    setUpdatingUserId(userId);
+    setErrorMessage('');
     try {
-      updateUserRole(userId, newRole);
+      await updateUserRole(userId, newRole);
       setMsg(`Đã cập nhật vai trò tài khoản "${name}" thành: ${newRole}`);
       setTimeout(() => setMsg(''), 3000);
     } catch (err) {
-      alert(err.message);
+      console.error('Failed to update role:', err);
+      setErrorMessage(err.message || 'Lỗi khi cập nhật vai trò người dùng');
+    } finally {
+      setUpdatingUserId(null);
     }
   };
 
@@ -32,7 +68,7 @@ export default function RoleManagementPage() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)]">
             <ShieldCheck className="w-5 h-5 text-purple-500" />
-            Phân Quyền Vai Trò (`identity_db`)
+            Phân Quyền Vai Trò (Microservice Identity DB)
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-1">
             Gán và chuyển đổi nhanh cấp độ truy cập hệ thống giữa `ROLE_USER`, `ROLE_STAFF` và `ROLE_ADMIN`.
@@ -45,6 +81,14 @@ export default function RoleManagementPage() {
         <div className="clean-card p-3.5 bg-emerald-500/10 border-emerald-500/30 text-emerald-600 text-xs flex items-center gap-2 rounded-xl">
           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
           {msg}
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="clean-card p-3.5 bg-red-500/10 border-red-500/30 text-red-600 text-xs flex items-center gap-2 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          {errorMessage}
         </div>
       )}
 
@@ -111,86 +155,111 @@ export default function RoleManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-main)]">
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="hover:bg-[var(--table-hover-bg)] transition">
-                  
-                  {/* Name */}
-                  <td className="p-3 font-bold text-[var(--text-primary)]">
-                    {u.fullName}
-                    {u.id === currentUser?.id && (
-                      <span className="ml-2 text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-mono font-bold">
-                        (Bạn)
-                      </span>
-                    )}
+              {isFetching ? (
+                <tr>
+                  <td colSpan="4" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
+                      <span>Đang tải danh sách người dùng...</span>
+                    </div>
                   </td>
-
-                  {/* Email & Phone */}
-                  <td className="p-3">
-                    <div>{u.email}</div>
-                    <div className="text-[11px] text-[var(--text-secondary)] font-mono">{u.phoneNumber}</div>
-                  </td>
-
-                  {/* Current Role Badge */}
-                  <td className="p-3">
-                    <span
-                      className={`px-3 py-1 rounded-lg text-[10px] font-mono font-bold uppercase ${
-                        u.role === 'ROLE_ADMIN'
-                          ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                          : u.role === 'ROLE_STAFF'
-                          ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
-                          : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
-                      }`}
-                    >
-                      {u.role === 'ROLE_ADMIN' ? '👑 ADMIN' : u.role === 'ROLE_STAFF' ? '👔 STAFF' : '👤 USER'}
-                    </span>
-                  </td>
-
-                  {/* Role Switch Dropdown / Action */}
-                  <td className="p-3 text-right">
-                    {u.id !== currentUser?.id ? (
-                      <div className="flex items-center justify-end gap-1.5">
-                        
-                        <button
-                          onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_USER')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
-                            u.role === 'ROLE_USER'
-                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold'
-                              : 'clean-card-subtle text-[var(--text-secondary)] hover:text-emerald-400'
-                          }`}
-                        >
-                          USER
-                        </button>
-
-                        <button
-                          onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_STAFF')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
-                            u.role === 'ROLE_STAFF'
-                              ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 font-bold'
-                              : 'clean-card-subtle text-[var(--text-secondary)] hover:text-indigo-400'
-                          }`}
-                        >
-                          STAFF
-                        </button>
-
-                        <button
-                          onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_ADMIN')}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer ${
-                            u.role === 'ROLE_ADMIN'
-                              ? 'bg-purple-500/20 text-purple-400 border-purple-500/40 font-bold'
-                              : 'clean-card-subtle text-[var(--text-secondary)] hover:text-purple-400'
-                          }`}
-                        >
-                          ADMIN
-                        </button>
-
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-[var(--text-muted)] font-mono">Tài khoản hiện tại</span>
-                    )}
-                  </td>
-
                 </tr>
-              ))}
+              ) : filteredUsers.length > 0 ? (
+                filteredUsers.map((u) => {
+                  const isUpdating = updatingUserId === u.id;
+                  return (
+                    <tr key={u.id} className="hover:bg-[var(--table-hover-bg)] transition">
+                      
+                      {/* Name */}
+                      <td className="p-3 font-bold text-[var(--text-primary)]">
+                        {u.fullName}
+                        {u.id === currentUser?.id && (
+                          <span className="ml-2 text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded font-mono font-bold">
+                            (Bạn)
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Email & Phone */}
+                      <td className="p-3">
+                        <div>{u.email}</div>
+                        <div className="text-[11px] text-[var(--text-secondary)] font-mono">{u.phoneNumber}</div>
+                      </td>
+
+                      {/* Current Role Badge */}
+                      <td className="p-3">
+                        <span
+                          className={`px-3 py-1 rounded-lg text-[10px] font-mono font-bold uppercase ${
+                            u.role === 'ROLE_ADMIN'
+                              ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                              : u.role === 'ROLE_STAFF'
+                              ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
+                              : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
+                          }`}
+                        >
+                          {u.role === 'ROLE_ADMIN' ? '👑 ADMIN' : u.role === 'ROLE_STAFF' ? '👔 STAFF' : '👤 USER'}
+                        </span>
+                      </td>
+
+                      {/* Role Switch Dropdown / Action */}
+                      <td className="p-3 text-right">
+                        {u.id !== currentUser?.id ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_USER')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer disabled:opacity-50 ${
+                                u.role === 'ROLE_USER'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 font-bold'
+                                  : 'clean-card-subtle text-[var(--text-secondary)] hover:text-emerald-400'
+                              }`}
+                            >
+                              USER
+                            </button>
+
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_STAFF')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer disabled:opacity-50 ${
+                                u.role === 'ROLE_STAFF'
+                                  ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 font-bold'
+                                  : 'clean-card-subtle text-[var(--text-secondary)] hover:text-indigo-400'
+                              }`}
+                            >
+                              STAFF
+                            </button>
+
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_ADMIN')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer disabled:opacity-50 ${
+                                u.role === 'ROLE_ADMIN'
+                                  ? 'bg-purple-500/20 text-purple-400 border-purple-500/40 font-bold'
+                                  : 'clean-card-subtle text-[var(--text-secondary)] hover:text-purple-400'
+                              }`}
+                            >
+                              ADMIN
+                            </button>
+
+                            {isUpdating && <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-600 ml-1" />}
+
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-[var(--text-muted)] font-mono">Tài khoản hiện tại</span>
+                        )}
+                      </td>
+
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="4" className="text-center py-8 text-[var(--text-muted)] text-xs">
+                    Không tìm thấy người dùng phù hợp.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -200,3 +269,4 @@ export default function RoleManagementPage() {
     </div>
   );
 }
+

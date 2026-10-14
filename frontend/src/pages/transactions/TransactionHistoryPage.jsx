@@ -1,16 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useWalletStore } from '../../store/useWalletStore';
-import { History, Filter, ArrowDownLeft, ArrowUpRight, Send, CheckCircle2, Eye, X, Copy, Check } from 'lucide-react';
+import { History, Filter, ArrowDownLeft, ArrowUpRight, Send, CheckCircle2, Eye, X, Copy, Check, Clock, XCircle } from 'lucide-react';
 
 export default function TransactionHistoryPage() {
-  const { transactions } = useWalletStore();
+  const { transactions, fetchTransactions, isLoading } = useWalletStore();
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [selectedTx, setSelectedTx] = useState(null);
   const [copiedKey, setCopiedKey] = useState(false);
 
-  const filteredTx = transactions.filter((tx) => {
-    if (filterType !== 'ALL' && tx.type !== filterType) return false;
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const filteredTx = (transactions || []).filter((tx) => {
+    const txType = tx.serviceType || tx.type;
+    if (filterType !== 'ALL' && txType !== filterType) return false;
     if (filterStatus !== 'ALL' && tx.status !== filterStatus) return false;
     return true;
   });
@@ -97,20 +102,31 @@ export default function TransactionHistoryPage() {
                   <div className="text-[10px] text-[var(--text-muted)] font-mono">Trace: {tx.traceId}</div>
                 </td>
                 <td className="p-3">
-                  <span className="inline-flex items-center gap-1 font-mono font-bold text-[11px] px-2 py-0.5 rounded clean-card-subtle">
-                    {tx.type === 'TOPUP' && <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />}
-                    {tx.type === 'TRANSFER' && <Send className="w-3.5 h-3.5 text-indigo-500" />}
-                    {tx.type === 'WITHDRAW' && <ArrowUpRight className="w-3.5 h-3.5 text-purple-500" />}
-                    {tx.type}
-                  </span>
+                  {(() => {
+                    const txType = tx.serviceType || tx.type;
+                    return (
+                      <span className="inline-flex items-center gap-1 font-mono font-bold text-[11px] px-2 py-0.5 rounded clean-card-subtle">
+                        {txType === 'TOPUP' && <ArrowDownLeft className="w-3.5 h-3.5 text-emerald-500" />}
+                        {txType === 'TRANSFER' && <Send className="w-3.5 h-3.5 text-indigo-500" />}
+                        {txType === 'WITHDRAW' && <ArrowUpRight className="w-3.5 h-3.5 text-purple-500" />}
+                        {txType}
+                      </span>
+                    );
+                  })()}
                 </td>
                 <td className="p-3 font-bold text-sm">
-                  {tx.type === 'TOPUP' ? '+' : '-'}{formatMoney(tx.amount)}
+                  {(tx.serviceType === 'TOPUP' || tx.type === 'TOPUP') ? '+' : '-'}{formatMoney(tx.amount)}
                 </td>
                 <td className="p-3 text-[var(--text-secondary)] max-w-xs truncate">{tx.description}</td>
                 <td className="p-3">
-                  <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 inline-flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" />
+                  <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border inline-flex items-center gap-1 ${
+                    tx.status === 'SUCCESS' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                    tx.status === 'PENDING' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
+                    'bg-red-500/10 text-red-500 border-red-500/20'
+                  }`}>
+                    {tx.status === 'SUCCESS' && <CheckCircle2 className="w-3 h-3" />}
+                    {tx.status === 'PENDING' && <Clock className="w-3 h-3" />}
+                    {tx.status === 'FAILED' && <XCircle className="w-3 h-3" />}
                     {tx.status}
                   </span>
                 </td>
