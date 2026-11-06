@@ -2,9 +2,11 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
-import { Wallet, LogOut, KeyRound, LayoutDashboard, History, FileText, Sun, Moon, ArrowDownLeft, Send, ArrowUpRight, User, Bell, Check, Users, ArrowLeftRight, Settings, Menu, X } from 'lucide-react';
+import { Wallet, LogOut, KeyRound, LayoutDashboard, History, FileText, Sun, Moon, ArrowDownLeft, Send, ArrowUpRight, User, Bell, Check, Users, ArrowLeftRight, Settings, Menu, X, Inbox } from 'lucide-react';
 import UserInfoModal from '../modals/UserInfoModal';
 import SystemConfigModal from '../modals/admin/SystemConfigModal';
+import notificationApi from '../../api/notificationApi';
+import { connectWebSocket, disconnectWebSocket } from '../../services/websocketService';
 
 export default function Navbar() {
   const { user, logout } = useAuthStore();
@@ -16,18 +18,46 @@ export default function Navbar() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: 'Nạp tiền thành công', detail: 'Tài khoản ví vừa tăng +500.000 VNĐ từ ngân hàng.', time: '10 phút trước', read: false, type: 'topup' },
-    { id: 2, title: 'Tính năng mới!', detail: 'Đã cập nhật Thống kê chi tiêu trực quan hàng tháng.', time: '1 giờ trước', read: false, type: 'feature' },
-    { id: 3, title: 'Bảo mật tài khoản', detail: 'Mã PIN 6 số đã được bảo vệ với mã hóa Idempotency.', time: 'Hôm qua', read: true, type: 'security' }
-  ]);
-
+  const [notifications, setNotifications] = useState([]);
   const notifRef = useRef(null);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Fetch real notifications and listen to realtime WebSocket STOMP push
+  useEffect(() => {
+    if (!user?.id) return;
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    // 1. Initial load from notification-service
+    const fetchNotifications = async () => {
+      try {
+        const res = await notificationApi.getUserNotifications(user.id);
+        const data = res?.result || res?.data || [];
+        setNotifications(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.warn('Failed to load notifications from notification-service:', err);
+      }
+    };
+    fetchNotifications();
+
+    // 2. Connect WebSocket for live push notifications
+    const client = connectWebSocket(user.id, (newNotif) => {
+      setNotifications((prev) => [newNotif, ...prev]);
+    });
+
+    return () => {
+      disconnectWebSocket();
+    };
+  }, [user?.id]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAllAsRead = async () => {
+    try {
+      if (user?.id) {
+        await notificationApi.markAllAsRead(user.id);
+      }
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.warn('Failed to mark all as read:', err);
+    }
   };
 
   // Close notifications dropdown on outside click
@@ -250,27 +280,50 @@ export default function Navbar() {
                   </div>
 
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                    {notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        className={`p-3 rounded-xl border text-xs space-y-1 transition ${
-                          n.read
-                            ? 'clean-card-subtle border-border-main opacity-70'
-                            : 'bg-emerald-500/5 border-emerald-500/30'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between font-bold text-text-primary">
-                          <span className="flex items-center gap-1.5">
-                            {!n.read && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />}
-                            {n.title}
-                          </span>
-                          <span className="text-[10px] text-text-secondary font-mono">{n.time}</span>
-                        </div>
-                        <p className="text-[11px] text-text-secondary leading-relaxed">
-                          {n.detail}
-                        </p>
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-text-secondary space-y-2">
+                        <Inbox className="w-8 h-8 mx-auto text-text-secondary/40" />
+                        <p className="text-xs">Chưa có thông báo mới nào</p>
                       </div>
-                    ))}
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={async () => {
+                            if (!n.read) {
+                              try {
+                                await notificationApi.markAsRead(n.id);
+                                setNotifications((prev) =>
+                                  prev.map((item) => (item.id === n.id ? { ...item, read: true } : item))
+                                );
+                              } catch (err) {
+                                console.warn(err);
+                              }
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-xs space-y-1 transition cursor-pointer ${
+                            n.read
+                              ? 'clean-card-subtle border-border-main opacity-70'
+                              : 'bg-emerald-500/10 border-emerald-500/30 shadow-xs'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-bold text-text-primary">
+                            <span className="flex items-center gap-1.5">
+                              {!n.read && <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />}
+                              {n.title}
+                            </span>
+                            <span className="text-[10px] text-text-secondary font-mono">
+                              {n.createdAt
+                                ? new Date(n.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                                : (n.time || 'Vừa xong')}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-text-secondary leading-relaxed">
+                            {n.detail}
+                          </p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

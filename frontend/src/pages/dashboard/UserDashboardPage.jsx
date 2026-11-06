@@ -7,6 +7,7 @@ import BannerCarousel from '../../components/dashboard/BannerCarousel';
 import QuickUtilitiesGrid from '../../components/dashboard/QuickUtilitiesGrid';
 import RecentTransactionsWidget from '../../components/dashboard/RecentTransactionsWidget';
 import SpendingStatsWidget from '../../components/dashboard/SpendingStatsWidget';
+import PinRequiredModal from '../../components/modals/PinRequiredModal';
 
 export default function UserDashboardPage() {
   const { user, verifyPin } = useAuthStore();
@@ -23,6 +24,7 @@ export default function UserDashboardPage() {
 
   // PIN modal for balance reveal
   const [showBalancePinModal, setShowBalancePinModal] = useState(false);
+  const [showPinRequiredModal, setShowPinRequiredModal] = useState(false);
   const [pinCode, setPinCode] = useState('');
   const [pinError, setPinError] = useState('');
 
@@ -34,7 +36,7 @@ export default function UserDashboardPage() {
   const handleToggleBalanceClick = () => {
     if (!isBalanceUnlocked) {
       if (!user?.hasPin) {
-        alert('Bạn cần cài đặt Mã PIN 6 số trước khi xem số dư!');
+        setShowPinRequiredModal(true);
         return;
       }
       setPinError('');
@@ -206,6 +208,12 @@ export default function UserDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Prompt to Setup PIN */}
+      <PinRequiredModal
+        isOpen={showPinRequiredModal}
+        onClose={() => setShowPinRequiredModal(false)}
+      />
 
     </div>
   );

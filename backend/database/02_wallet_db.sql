@@ -56,3 +56,20 @@ VALUES
 ('e11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'd11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Tích Luỹ Linh Hoạt', 10000000.00, 4.00, 0, 'ACTIVE'),
 ('e22ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'd11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Tiết Kiệm Tương Lai 6M', 50000000.00, 7.20, 6, 'ACTIVE')
 ON CONFLICT (id) DO NOTHING;
+
+
+create table linked_bank_accounts (
+                                      id uuid not null,
+                                      user_id uuid not null,
+                                      bank_code varchar(20) not null,
+                                      bank_name varchar(100) not null,
+                                      account_number varchar(50) not null,
+                                      account_holder_name varchar(100) not null,
+                                      is_default boolean not null,
+                                      status varchar(20) not null,
+                                      created_at timestamp(6) with time zone not null,
+                                      updated_at timestamp(6) with time zone not null,
+                                      primary key (id)
+)
+create index idx_linked_bank_user_id
+    on linked_bank_accounts (user_id)

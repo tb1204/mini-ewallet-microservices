@@ -43,6 +43,23 @@ public class TransactionController {
     }
 
     /**
+     * Record an external transaction into transaction history (Top-up, Withdraw, Utilities).
+     */
+    @PostMapping("/record")
+    public ResponseEntity<ApiResponse<TransactionResponse>> recordTransaction(
+            @Valid @RequestBody com.example.transactionservice.dto.request.RecordTransactionRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        TransactionResponse response = transactionService.recordTransaction(currentUserId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                ApiResponse.<TransactionResponse>builder()
+                        .message("Ghi nhận giao dịch thành công")
+                        .result(response)
+                        .data(response)
+                        .build()
+        );
+    }
+
+    /**
      * Retrieve transaction history for current authenticated user's wallet.
      */
     @GetMapping("/history")

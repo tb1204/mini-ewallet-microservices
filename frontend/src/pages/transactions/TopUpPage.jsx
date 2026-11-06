@@ -1,28 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWalletStore } from '../../store/useWalletStore';
-import { ArrowDownLeft, CreditCard, Building2, QrCode, CheckCircle2, ShieldCheck, Copy, Check } from 'lucide-react';
+import { ArrowDownLeft, Building2, QrCode, CheckCircle2, Copy, Check, X, ArrowRight, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function TopUpPage() {
-  const { user, verifyPin } = useAuthStore();
+  const { user } = useAuthStore();
   const { executeTopUp, fetchMyWallet } = useWalletStore();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('BANK_TRANSFER');
-  const [description, setDescription] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('VIETQR');
   const [idempotencyKey, setIdempotencyKey] = useState('');
-  const [copiedKey, setCopiedKey] = useState(false);
 
-  // PIN modal state
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinCode, setPinCode] = useState('');
+  // VietQR Modal state
+  const [showVietQrModal, setShowVietQrModal] = useState(false);
+  const [copiedField, setCopiedField] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [successTx, setSuccessTx] = useState(null);
 
-  // Generate unique idempotency key on mount
+  // Quick preset amounts
+  const presets = [100000, 200000, 500000, 1000000, 2000000, 5000000];
+
   useEffect(() => {
     generateIdempotencyKey();
     fetchMyWallet();
@@ -37,55 +38,65 @@ export default function TopUpPage() {
     setIdempotencyKey(uuid);
   };
 
-  const handleCopyKey = () => {
-    navigator.clipboard.writeText(idempotencyKey);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
+  const handleCopyText = (text, fieldName) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => setCopiedField(''), 2000);
   };
 
-  const presets = [100000, 200000, 500000, 1000000, 2000000, 5000000];
+  // Bank transfer info for VietQR
+  const bankInfo = {
+    bankId: 'MB',
+    bankName: 'MBBank (Ngân hàng Quân Đội)',
+    accountNumber: '0941477178',
+    accountName: 'MINI WALLET',
+    transferContent: `NAP ${user?.phoneNumber || user?.username || 'VI'}`,
+  };
 
-  const handleSubmitInit = (e) => {
+  const numAmount = parseFloat(amount) || 0;
+  const vietQrUrl = `https://img.vietqr.io/image/${bankInfo.bankId}-${bankInfo.accountNumber}-compact2.png?amount=${numAmount}&addInfo=${encodeURIComponent(bankInfo.transferContent)}&accountName=${encodeURIComponent(bankInfo.accountName)}`;
+
+  // Handle Form Submission
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
-    const num = parseFloat(amount);
-    if (isNaN(num) || num <= 0) {
+    if (numAmount <= 0) {
       setError('Số tiền nạp phải lớn hơn 0 VNĐ!');
       return;
     }
 
-    if (!user?.hasPin) {
-      setError('Bạn cần cài đặt Mã PIN 6 số trước khi thực hiện giao dịch!');
-      return;
+    if (paymentMethod === 'VIETQR') {
+      // Show VietQR scanning modal
+      setShowVietQrModal(true);
+    } else {
+      // Direct Bank Transfer simulation
+      performTopUp();
     }
-
-    setShowPinModal(true);
   };
 
-  const handleConfirmPinAndTopUp = async (e) => {
-    e.preventDefault();
+  // Perform top-up call
+  const performTopUp = async () => {
     setError('');
-
-    const isValid = await verifyPin(pinCode);
-    if (!isValid) {
-      setError('Mã PIN 6 số không chính xác!');
-      return;
-    }
-
+    setLoading(true);
     try {
-      setLoading(true);
-      const tx = await executeTopUp({
-        amount,
+      await executeTopUp({
+        amount: numAmount,
         paymentMethod,
         idempotencyKey,
-        description
+        description: `Nạp tiền qua ${paymentMethod === 'VIETQR' ? 'VietQR' : 'Chuyển khoản ngân hàng'}`,
       });
 
-      setSuccessTx(tx);
-      setShowPinModal(false);
+      setSuccessTx({
+        amount: numAmount,
+        paymentMethod: paymentMethod === 'VIETQR' ? 'Quét Mã VietQR' : 'Chuyển Khoản Ngân Hàng',
+        transactionCode: idempotencyKey.toUpperCase(),
+        createdAt: new Date().toISOString(),
+      });
+
+      setShowVietQrModal(false);
     } catch (err) {
-      setError(err.message || 'Giao dịch thất bại!');
+      setError(err.message || 'Giao dịch nạp tiền thất bại!');
     } finally {
       setLoading(false);
     }
@@ -99,34 +110,36 @@ export default function TopUpPage() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <ArrowDownLeft className="w-5 h-5 text-emerald-500" />
-            Nạp Tiền Vào Ví (`transaction_db`)
+            Nạp Tiền Vào Ví
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Nạp tiền trực tiếp vào tài khoản ví chính sử dụng mã Idempotency Key chống trùng lặp.
+            Nạp tiền vào tài khoản ví nhanh chóng và an toàn.
           </p>
         </div>
       </div>
 
       {/* Success View */}
       {successTx ? (
-        <div className="clean-card p-8 text-center space-y-4">
+        <div className="clean-card p-8 text-center space-y-5 animate-scale-up">
           <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
-          <h2 className="text-xl font-bold text-emerald-600">Nạp Tiền Thành Công!</h2>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Đã cộng +{parseFloat(successTx.amount).toLocaleString('vi-VN')} VNĐ vào Ví chính.
-          </p>
+          <div className="space-y-1">
+            <h2 className="text-xl font-bold text-emerald-600">Nạp Tiền Thành Công!</h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Đã cộng +{successTx.amount.toLocaleString('vi-VN')} VNĐ vào số dư ví của bạn.
+            </p>
+          </div>
 
-          <div className="clean-card-subtle p-4 text-xs font-mono text-left space-y-2 max-w-md mx-auto">
+          <div className="clean-card-subtle p-4 text-xs font-mono text-left space-y-2.5 max-w-md mx-auto">
             <div className="flex justify-between">
-              <span className="text-[var(--text-secondary)]">Mã giao dịch:</span>
-              <span className="font-bold">{successTx.transactionCode}</span>
+              <span className="text-[var(--text-secondary)]">Phương thức:</span>
+              <span className="font-semibold text-emerald-600">{successTx.paymentMethod}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-[var(--text-secondary)]">Trace ID:</span>
-              <span className="text-slate-500">{successTx.traceId}</span>
+              <span className="text-[var(--text-secondary)]">Mã giao dịch:</span>
+              <span className="font-bold truncate max-w-[200px]">{successTx.transactionCode}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--text-secondary)]">Thời gian:</span>
@@ -147,7 +160,7 @@ export default function TopUpPage() {
             </button>
             <button
               onClick={() => navigate('/')}
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl"
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-emerald-600/20"
             >
               Về Trang Chủ Ví
             </button>
@@ -162,7 +175,7 @@ export default function TopUpPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmitInit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-5">
             
             {/* Amount Presets */}
             <div>
@@ -175,7 +188,7 @@ export default function TopUpPage() {
                     onClick={() => setAmount(val.toString())}
                     className={`py-2 text-xs font-mono font-semibold rounded-lg border transition ${
                       amount === val.toString()
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 font-bold'
                         : 'clean-card-subtle text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >
@@ -193,130 +206,170 @@ export default function TopUpPage() {
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="VD: 500000"
+                min="10000"
+                step="1000"
                 className="w-full clean-input px-3.5 py-2.5 text-sm font-mono font-bold"
                 required
               />
             </div>
 
-            {/* Payment Method Selection */}
+            {/* Payment Method Selection: VietQR & Bank Transfer */}
             <div>
               <label className="block text-xs font-semibold mb-2">Phương thức thanh toán:</label>
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('BANK_TRANSFER')}
-                  className={`p-3 rounded-xl border text-xs font-medium flex flex-col items-center gap-1.5 transition ${
-                    paymentMethod === 'BANK_TRANSFER'
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600'
-                      : 'clean-card-subtle text-[var(--text-secondary)]'
-                  }`}
-                >
-                  <Building2 className="w-5 h-5" />
-                  Chuyển Khoản Ngân Hàng
-                </button>
-
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('VIETQR')}
-                  className={`p-3 rounded-xl border text-xs font-medium flex flex-col items-center gap-1.5 transition ${
+                  className={`p-4 rounded-xl border text-xs font-medium flex flex-col items-center gap-2 transition ${
                     paymentMethod === 'VIETQR'
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600'
-                      : 'clean-card-subtle text-[var(--text-secondary)]'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 font-bold shadow-sm'
+                      : 'clean-card-subtle text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  <QrCode className="w-5 h-5" />
-                  Quét Mã VietQR
+                  <QrCode className="w-6 h-6 text-emerald-500" />
+                  <span>Quét Mã VietQR</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('CREDIT_CARD')}
-                  className={`p-3 rounded-xl border text-xs font-medium flex flex-col items-center gap-1.5 transition ${
-                    paymentMethod === 'CREDIT_CARD'
-                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600'
-                      : 'clean-card-subtle text-[var(--text-secondary)]'
+                  onClick={() => setPaymentMethod('BANK_TRANSFER')}
+                  className={`p-4 rounded-xl border text-xs font-medium flex flex-col items-center gap-2 transition ${
+                    paymentMethod === 'BANK_TRANSFER'
+                      ? 'bg-emerald-500/20 border-emerald-500 text-emerald-600 font-bold shadow-sm'
+                      : 'clean-card-subtle text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  <CreditCard className="w-5 h-5" />
-                  Thẻ Thẻ Quốc Tế
+                  <Building2 className="w-6 h-6 text-indigo-500" />
+                  <span>Chuyển Khoản Ngân Hàng</span>
                 </button>
               </div>
             </div>
 
-            {/* Idempotency Key info */}
-            <div className="clean-card-subtle p-3.5 rounded-xl text-xs space-y-1">
-              <div className="flex justify-between items-center text-[var(--text-secondary)]">
-                <span>Idempotency Key (Tự động sinh chống nạp trùng):</span>
-                <button
-                  type="button"
-                  onClick={handleCopyKey}
-                  className="text-emerald-600 hover:underline flex items-center gap-1"
-                >
-                  {copiedKey ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  {copiedKey ? 'Đã copy' : 'Copy Key'}
-                </button>
-              </div>
-              <div className="font-mono text-[11px] text-slate-500 truncate">{idempotencyKey}</div>
-            </div>
-
-            {/* Submit */}
+            {/* Submit Button */}
             <button
               type="submit"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition"
+              disabled={loading}
+              className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 disabled:opacity-50"
             >
-              Tiếp Theo & Xác Nhận PIN
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang xử lý nạp tiền...</span>
+                </>
+              ) : (
+                <span>Xác Nhận Nạp Tiền</span>
+              )}
             </button>
           </form>
         </div>
       )}
 
-      {/* PIN Modal */}
-      {showPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--modal-overlay)] backdrop-blur-sm">
-          <div className="clean-card p-6 sm:p-8 max-w-md w-full relative shadow-2xl">
-            <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-emerald-500" />
-              Xác Nhận PIN 6 Số
-            </h3>
-            <p className="text-xs text-[var(--text-secondary)] mb-5">
-              Nhập mã PIN để hoàn tất giao dịch nạp {parseFloat(amount).toLocaleString('vi-VN')} VNĐ
-            </p>
+      {/* VietQR Scanning Modal */}
+      {showVietQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="clean-card p-6 sm:p-7 max-w-md w-full relative shadow-2xl space-y-4 animate-scale-up">
+            
+            {/* Close button */}
+            <button
+              onClick={() => setShowVietQrModal(false)}
+              className="absolute top-4 right-4 p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-slate-800/20 transition"
+              title="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
-            {error && (
-              <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs">
-                ⚠️ {error}
-              </div>
-            )}
+            {/* Header */}
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-bold flex items-center justify-center gap-2">
+                <QrCode className="w-5 h-5 text-emerald-500" />
+                Quét Mã VietQR Nạp Tiền
+              </h3>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Mở app ngân hàng bất kỳ để quét mã và chuyển tiền tự động
+              </p>
+            </div>
 
-            <form onSubmit={handleConfirmPinAndTopUp} className="space-y-4">
-              <input
-                type="password"
-                maxLength={6}
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value)}
-                placeholder="••••••"
-                className="w-full clean-input px-3 py-3 text-center text-xl font-mono tracking-widest"
-                required
-                autoFocus
+            {/* VietQR Image Container */}
+            <div className="bg-white p-3 rounded-2xl flex items-center justify-center shadow-inner mx-auto max-w-[240px]">
+              <img
+                src={vietQrUrl}
+                alt="VietQR Nạp Tiền"
+                className="w-full h-auto object-contain rounded-lg"
               />
+            </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPinModal(false)}
-                  className="flex-1 py-2.5 clean-card-subtle text-xs font-semibold rounded-xl"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition disabled:opacity-50"
-                >
-                  {loading ? 'Đang nạp...' : 'Xác Nhận Nạp'}
-                </button>
+            {/* Payment Details */}
+            <div className="clean-card-subtle p-3 rounded-xl text-xs space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-secondary)]">Ngân hàng:</span>
+                <span className="font-semibold">{bankInfo.bankName}</span>
               </div>
-            </form>
+
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-secondary)]">Số tài khoản:</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-emerald-600">
+                  <span>{bankInfo.accountNumber}</span>
+                  <button
+                    onClick={() => handleCopyText(bankInfo.accountNumber, 'acc')}
+                    className="p-1 hover:bg-slate-800/20 rounded"
+                    title="Copy số tài khoản"
+                  >
+                    {copiedField === 'acc' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-secondary)]">Số tiền:</span>
+                <span className="font-bold font-mono text-emerald-600 text-sm">
+                  {numAmount.toLocaleString('vi-VN')} VNĐ
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--text-secondary)]">Nội dung CK:</span>
+                <div className="flex items-center gap-1.5 font-mono font-bold text-amber-500">
+                  <span>{bankInfo.transferContent}</span>
+                  <button
+                    onClick={() => handleCopyText(bankInfo.transferContent, 'content')}
+                    className="p-1 hover:bg-slate-800/20 rounded"
+                    title="Copy nội dung"
+                  >
+                    {copiedField === 'content' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowVietQrModal(false)}
+                className="flex-1 py-2.5 clean-card-subtle text-xs font-semibold rounded-xl"
+              >
+                Hủy Bỏ
+              </button>
+
+              <button
+                type="button"
+                onClick={performTopUp}
+                disabled={loading}
+                className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang xác nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Tôi Đã Chuyển Tiền</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -60,7 +60,7 @@ export const useAuthStore = create((set, get) => ({
         email,
         phoneNumber,
         password,
-        pin: pin || '123456',
+        pin: null,
         username,
       });
 
@@ -182,21 +182,48 @@ export const useAuthStore = create((set, get) => ({
   },
 
   /**
-   * Request PIN reset OTP
+   * Request real PIN reset OTP sent to registered email via Java Mail
    */
   sendPinResetOtp: async () => {
-    // Demo verification code fallback for forgot-PIN flow
-    return '666888';
+    try {
+      const response = await authApi.sendPinResetOtp();
+      return response?.result || response?.data || 'Đã gửi mã OTP về email của bạn!';
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Không thể gửi mã OTP xác thực!';
+      throw new Error(message);
+    }
+  },
+
+  /**
+   * Verify real 6-digit OTP code with backend identity-service
+   */
+  verifyPinResetOtp: async (otp) => {
+    try {
+      const response = await authApi.verifyPinResetOtp(otp);
+      return response?.result ?? response?.data ?? false;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Mã OTP không hợp lệ hoặc đã hết hạn!';
+      throw new Error(message);
+    }
   },
 
   /**
    * Reset PIN using verified OTP
    */
   resetPinWithOtp: async (otpCode, newPinCode) => {
-    if (otpCode !== '666888' && otpCode.length < 6) {
-      throw new Error('Invalid verification OTP code');
+    try {
+      await authApi.resetPinWithOtp({ otp: otpCode, newPin: newPinCode });
+      const currentUser = get().user;
+      if (currentUser) {
+        const updated = { ...currentUser, hasPin: true };
+        localStorage.setItem('ewallet_user', JSON.stringify(updated));
+        set({ user: updated });
+      }
+      return true;
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Không thể đặt lại mã PIN!';
+      throw new Error(message);
     }
-    return get().setupPin(newPinCode);
   },
 
   /**

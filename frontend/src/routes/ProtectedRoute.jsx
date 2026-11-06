@@ -1,10 +1,23 @@
-
-import { Navigate, Outlet } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import Navbar from '../components/layout/Navbar';
+import PageSpinner from '../components/common/PageSpinner';
 
 export default function ProtectedRoute() {
   const { user, token } = useAuthStore();
+  const location = useLocation();
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  // Hiệu ứng loading xoay tròn ~1s khi chuyển đổi qua lại giữa các menu
+  useEffect(() => {
+    setIsNavigating(true);
+    const timer = setTimeout(() => {
+      setIsNavigating(false);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [location.pathname]);
 
   if (!user || !token) {
     return <Navigate to="/login" replace />;
@@ -37,8 +50,14 @@ export default function ProtectedRoute() {
   return (
     <div className="min-h-screen bg-(--bg-main) text-text-primary transition-colors duration-200 flex flex-col">
       <Navbar />
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        <Outlet />
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+        {isNavigating ? (
+          <PageSpinner message="Đang tải dữ liệu..." />
+        ) : (
+          <div key={location.pathname} className="animate-in fade-in-50 duration-200">
+            <Outlet />
+          </div>
+        )}
       </main>
     </div>
   );

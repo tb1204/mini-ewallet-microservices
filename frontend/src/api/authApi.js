@@ -10,9 +10,11 @@ export const authApi = {
    * Authenticate user with credentials (email/phone and password)
    * @param {Object} credentials - { emailOrPhone, password }
    */
-  login: async ({ emailOrPhone, password }) => {
+  login: async ({ emailOrPhone, usernameOrEmail, password }) => {
+    const identifier = usernameOrEmail || emailOrPhone;
     return await axiosClient.post(`${AUTH_SERVICE_URL}/login`, {
-      emailOrPhone,
+      usernameOrEmail: identifier,
+      emailOrPhone: identifier,
       password,
     });
   },
@@ -28,7 +30,7 @@ export const authApi = {
       phoneNumber,
       password,
       fullName,
-      pin: pin || '123456',
+      pin: null,
       avatarUrl,
     });
   },
@@ -60,6 +62,29 @@ export const authApi = {
       oldPin,
       newPin,
     });
+  },
+
+  /**
+   * Send real 6-digit OTP to user's registered email for PIN reset
+   */
+  sendPinResetOtp: async () => {
+    return await axiosClient.post(`${AUTH_SERVICE_URL}/forgot-pin/send-otp`);
+  },
+
+  /**
+   * Verify 6-digit OTP entered by user
+   * @param {string} otp
+   */
+  verifyPinResetOtp: async (otp) => {
+    return await axiosClient.post(`${AUTH_SERVICE_URL}/forgot-pin/verify-otp`, { otp });
+  },
+
+  /**
+   * Reset transaction PIN using verified OTP
+   * @param {Object} data - { otp, newPin }
+   */
+  resetPinWithOtp: async ({ otp, newPin }) => {
+    return await axiosClient.post(`${AUTH_SERVICE_URL}/forgot-pin/reset`, { otp, newPin });
   },
 
   /**

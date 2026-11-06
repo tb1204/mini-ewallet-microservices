@@ -1,8 +1,10 @@
 package com.example.identityservice.service;
 
+import com.example.identityservice.config.RabbitMQConfig;
 import com.example.identityservice.constants.ErrorCode;
 import com.example.identityservice.constants.KycStatus;
 import com.example.identityservice.constants.Role;
+import com.example.identityservice.dto.event.PinResetOtpEvent;
 import com.example.identityservice.dto.request.*;
 import com.example.identityservice.dto.response.AuthResponse;
 import com.example.identityservice.dto.response.UserResponse;
@@ -13,6 +15,7 @@ import com.example.identityservice.repositories.UserRepository;
 import com.example.identityservice.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -32,6 +35,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final OtpService otpService;
+    private final RabbitTemplate rabbitTemplate;
 
     /**
      * Register a new user profile:
@@ -61,7 +66,7 @@ public class AuthService {
                 .email(request.getEmail())
                 .phoneNumber(request.getPhoneNumber())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .pinHash(request.getPin() != null ? passwordEncoder.encode(request.getPin()) : null)
+                .pinHash(null)
                 .fullName(request.getFullName())
                 .role(Role.ROLE_USER)
                 .avatarUrl(request.getAvatarUrl() != null ? request.getAvatarUrl() : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80")
@@ -96,8 +101,9 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         log.info("Authenticating user: {}", request.getUsernameOrEmail());
 
-        // 1. Retrieve user by username or email
+        // 1. Retrieve user by username, email, or phone number
         User user = userRepository.findByUsernameOrEmail(request.getUsernameOrEmail(), request.getUsernameOrEmail())
+                .or(() -> userRepository.findByPhoneNumber(request.getUsernameOrEmail()))
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_CREDENTIALS));
 
         // 2. Ensure account is not locked/inactive
@@ -192,6 +198,62 @@ public class AuthService {
 
         user.setPinHash(passwordEncoder.encode(request.getNewPin()));
         userRepository.save(user);
+    }
+
+    /**
+     * Generate real 6-digit OTP and publish PinResetOtpEvent to RabbitMQ.
+     * The notification-service consumes the event and dispatches the HTML email via Java Mail.
+     */
+    public String sendPinResetOtp(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        String otp = otpService.generateOtp(userId);
+
+        PinResetOtpEvent event = PinResetOtpEvent.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .fullName(user.getFullName())
+                .otpCode(otp)
+                .build();
+
+        rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.OTP_EMAIL_ROUTING_KEY, event);
+        log.info("Published PinResetOtpEvent to RabbitMQ for user: {}", user.getEmail());
+
+        return "Mã OTP xác thực 6 số đã được gửi tới Email " + user.getEmail();
+    }
+
+    /**
+     * Verify OTP entered by user.
+     */
+    public boolean verifyPinResetOtp(UUID userId, String otp) {
+        boolean isValid = otpService.verifyOtp(userId, otp);
+        if (!isValid) {
+            throw new AppException(ErrorCode.INVALID_OTP, "Mã OTP không chính xác hoặc đã hết hạn (5 phút)!");
+        }
+        return true;
+    }
+
+    /**
+     * Reset 6-digit PIN with verified OTP.
+     */
+    @Transactional
+    public void resetPinWithOtp(UUID userId, String otp, String newPin) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        if (!otpService.isVerified(userId, otp)) {
+            // Also try verifying if not yet marked
+            boolean verified = otpService.verifyOtp(userId, otp);
+            if (!verified) {
+                throw new AppException(ErrorCode.INVALID_OTP, "Mã OTP chưa được xác thực hoặc đã hết hạn!");
+            }
+        }
+
+        user.setPinHash(passwordEncoder.encode(newPin));
+        userRepository.save(user);
+        otpService.clearOtp(userId);
+        log.info("Successfully reset PIN for user: {}", user.getUsername());
     }
 
     /**

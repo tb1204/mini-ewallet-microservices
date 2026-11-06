@@ -80,6 +80,20 @@ export const useWalletStore = create((set, get) => ({
       const response = await walletApi.topUp({ amount: numAmount });
       const walletData = response?.result || response?.data;
 
+      // Record to transaction-service history
+      try {
+        await transactionApi.recordTransaction({
+          serviceType: 'TOPUP',
+          amount: numAmount,
+          fee: 0,
+          description: description || `Nạp tiền vào ví qua ${paymentMethod || 'VietQR'}`,
+          idempotencyKey,
+          status: 'SUCCESS'
+        });
+      } catch (recErr) {
+        console.warn('Could not record topup in transaction-service:', recErr);
+      }
+
       // Refresh wallet & transaction history
       await Promise.allSettled([get().fetchMyWallet(), get().fetchTransactions()]);
 
@@ -136,6 +150,20 @@ export const useWalletStore = create((set, get) => ({
       });
 
       const walletData = response?.result || response?.data;
+
+      // Record to transaction-service history
+      try {
+        await transactionApi.recordTransaction({
+          serviceType: 'WITHDRAW',
+          amount: numAmount,
+          fee: 0,
+          description: `Rút tiền về ${bankName || 'Ngân hàng'}${accountNumber ? ' (' + accountNumber + ')' : ''}`,
+          idempotencyKey,
+          status: 'SUCCESS'
+        });
+      } catch (recErr) {
+        console.warn('Could not record withdrawal in transaction-service:', recErr);
+      }
 
       // Refresh wallet & transaction history
       await Promise.allSettled([get().fetchMyWallet(), get().fetchTransactions()]);

@@ -1,0 +1,214 @@
+#version: '3.8'
+
+networks:
+  ewallet-network:
+    driver: bridge
+
+services:
+  # ----------------------------------------------------
+  # 1. DISCOVERY SERVER (Port: 8761)
+  # ----------------------------------------------------
+  discovery-server:
+    build:
+      context: ./backend/discovery-server
+      dockerfile: Dockerfile
+    image: discovery-server:latest
+    container_name: discovery-server
+    restart: always
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_INSTANCE_HOSTNAME: discovery-server
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 2. IDENTITY SERVICE (Port: 8081)
+  # ----------------------------------------------------
+  identity-service:
+    build:
+      context: ./backend/identity-service
+      dockerfile: Dockerfile
+    image: identity-service:latest
+    container_name: identity-service
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/identity_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgresql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - discovery-server
+      - rabbitmq
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 3. WALLET SERVICE (Port: 8082)
+  # ----------------------------------------------------
+  wallet-service:
+    build:
+      context: ./backend/wallet-service
+      dockerfile: Dockerfile
+    image: wallet-service:latest
+    container_name: wallet-service
+    restart: always
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/wallet_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgresql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - discovery-server
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 4. TRANSACTION SERVICE (Port: 8083)
+  # ----------------------------------------------------
+  transaction-service:
+    build:
+      context: ./backend/transaction-service
+      dockerfile: Dockerfile
+    image: transaction-service:latest
+    container_name: transaction-service
+    restart: always
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/transaction_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgresql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - discovery-server
+      - rabbitmq
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 5. AUDIT SERVICE (Port: 8084)
+  # ----------------------------------------------------
+  audit-service:
+    build:
+      context: ./backend/audit-service
+      dockerfile: Dockerfile
+    image: audit-service:latest
+    container_name: audit-service
+    restart: always
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/audit_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgresql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - discovery-server
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 6. RABBITMQ MESSAGE BROKER (AMQP: 5672, UI: 15672)
+  # ----------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 7. NOTIFICATION SERVICE (Port: 8085)
+  # ----------------------------------------------------
+  notification-service:
+    build:
+      context: ./backend/notification-service
+      dockerfile: Dockerfile
+    image: notification-service:latest
+    container_name: notification-service
+    restart: always
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgresql
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: guest
+      SPRING_RABBITMQ_PASSWORD: guest
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - discovery-server
+      - rabbitmq
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 8. API GATEWAY (Port: 8080)
+  # ----------------------------------------------------
+  api-gateway:
+    build:
+      context: ./backend/api-gateway
+      dockerfile: Dockerfile
+    image: api-gateway:latest
+    container_name: api-gateway
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-server:8761/eureka/
+    depends_on:
+      - discovery-server
+    networks:
+      - ewallet-network
+
+  # ----------------------------------------------------
+  # 9. FRONTEND (Port: 3000)
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: frontend:latest
+    container_name: frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - ewallet-network

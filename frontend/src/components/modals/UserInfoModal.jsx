@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Link, useNavigate } from 'react-router-dom';
 import { X, Mail, Phone, ShieldCheck, ShieldAlert, KeyRound, LogOut, Cpu, Edit3, Check, Save, Camera, Upload } from 'lucide-react';
+import LinkBankModal from './LinkBankModal';
 
 // Sample curated preset avatars
 const PRESET_AVATARS = [
@@ -20,6 +21,7 @@ export default function UserInfoModal({ isOpen, onClose }) {
 
   const [isEditing, setIsEditing] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showLinkBankModal, setShowLinkBankModal] = useState(false);
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -317,6 +319,13 @@ export default function UserInfoModal({ isOpen, onClose }) {
           </Link>
 
           <button
+            onClick={() => setShowLinkBankModal(true)}
+            className="w-full py-2.5 rounded-xl clean-card text-xs font-semibold flex items-center justify-center transition shadow-sm hover:border-purple-500 cursor-pointer"
+          >
+            Liên kết ngân hàng
+          </button>
+
+          <button
             onClick={handleLogout}
             className="w-full py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/30 text-xs font-bold flex items-center justify-center gap-2 transition"
           >
@@ -326,6 +335,17 @@ export default function UserInfoModal({ isOpen, onClose }) {
         </div>
 
       </div>
+
+      {/* Link Bank Account Modal */}
+      <LinkBankModal
+        isOpen={showLinkBankModal}
+        onClose={() => setShowLinkBankModal(false)}
+        onSuccess={() => {
+          if (window.location.pathname === '/withdraw') {
+            window.location.reload();
+          }
+        }}
+      />
     </>
   );
 }

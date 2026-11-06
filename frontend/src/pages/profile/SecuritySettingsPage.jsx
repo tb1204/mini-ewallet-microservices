@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { ShieldCheck, KeyRound, CheckCircle2, Lock, AlertCircle, ArrowLeft, Mail, Phone, RefreshCw } from 'lucide-react';
 
 export default function SecuritySettingsPage() {
-  const { user, setupPin, changePin, verifyPin, sendPinResetOtp, resetPinWithOtp } = useAuthStore();
+  const { user, setupPin, changePin, verifyPin, sendPinResetOtp, verifyPinResetOtp, resetPinWithOtp } = useAuthStore();
   
   // Steps:
   // 0: Enter Old PIN (Only if user already has a PIN)
@@ -17,7 +17,7 @@ export default function SecuritySettingsPage() {
 
   // Forgot PIN OTP states
   const [isOtpMode, setIsOtpMode] = useState(false);
-  const [otpDigits, setOtpDigits] = useState(['6', '6', '6', '8', '8', '8']); // Pre-filled mock OTP for quick demo
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [otpSentMsg, setOtpSentMsg] = useState('');
   const [isOtpVerified, setIsOtpVerified] = useState(false);
 
@@ -67,16 +67,17 @@ export default function SecuritySettingsPage() {
     }
   };
 
-  // Trigger Forgot PIN OTP Flow
+  // Trigger Forgot PIN OTP Flow via real Java Mail
   const handleForgotPinClick = async () => {
     setError('');
     setLoading(true);
+    setOtpDigits(['', '', '', '', '', '']);
     try {
-      const mockOtp = await sendPinResetOtp();
+      const msg = await sendPinResetOtp();
       setIsOtpMode(true);
-      setOtpSentMsg(`Mã OTP xác thực 6 số đã được gửi tới Email ${user.email} & SĐT ${user.phoneNumber}! (Mã demo: ${mockOtp})`);
+      setOtpSentMsg(`Mã OTP xác thực 6 số đã được gửi tới Email ${user?.email}. Vui lòng kiểm tra hộp thư đến (hoặc hòm thư Spam/Quảng cáo)!`);
     } catch (err) {
-      setError(err.message || 'Không thể gửi mã OTP xác thực!');
+      setError(err.message || 'Không thể gửi mã OTP xác thực qua email!');
     } finally {
       setLoading(false);
     }
@@ -94,21 +95,25 @@ export default function SecuritySettingsPage() {
     }
 
     if (isOtpMode) {
-      // Verify OTP
+      // Verify OTP with backend identity-service
       setLoading(true);
-      await new Promise((r) => setTimeout(r, 400));
-      setLoading(false);
+      try {
+        const isValid = await verifyPinResetOtp(currentDigitsStr);
+        if (!isValid) {
+          setError('Mã OTP xác thực không chính xác hoặc đã hết hạn (5 phút)!');
+          return;
+        }
 
-      if (currentDigitsStr !== '666888' && currentDigitsStr.length < 6) {
-        setError('Mã OTP xác thực không hợp lệ!');
-        return;
+        setIsOtpVerified(true);
+        setIsOtpMode(false);
+        setStep(1); // Advance directly to New PIN step
+        setSuccessMsg('Xác thực OTP qua email thành công! Vui lòng nhập Mã PIN Mới bên dưới.');
+        setTimeout(() => setSuccessMsg(''), 5000);
+      } catch (err) {
+        setError(err.message || 'Mã OTP xác thực không hợp lệ!');
+      } finally {
+        setLoading(false);
       }
-
-      setIsOtpVerified(true);
-      setIsOtpMode(false);
-      setStep(1); // Advance directly to New PIN step
-      setSuccessMsg('Xác thực OTP thành công! Vui lòng nhập Mã PIN Mới bên dưới.');
-      setTimeout(() => setSuccessMsg(''), 4000);
       return;
     }
 
@@ -301,6 +306,21 @@ export default function SecuritySettingsPage() {
                 className="text-xs text-indigo-500 hover:underline font-semibold"
               >
                 Quên mã PIN cũ? Quá trình xác thực OTP →
+              </button>
+            </div>
+          )}
+
+          {/* Resend OTP Link in OTP Mode */}
+          {isOtpMode && (
+            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
+              <span>Chưa nhận được mã OTP?</span>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleForgotPinClick}
+                className="text-indigo-500 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3 h-3" /> Gửi lại mã qua Email
               </button>
             </div>
           )}

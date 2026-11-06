@@ -57,10 +57,21 @@ public class WalletService {
 
     /**
      * Retrieve wallet details by user UUID.
+     * Auto-creates a new active wallet if one does not exist yet.
      */
+    @Transactional
     public WalletResponse getWalletByUserId(UUID userId) {
         Wallet wallet = walletRepository.findByUserId(userId)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+                .orElseGet(() -> {
+                    log.info("Wallet not found for user ID: {}, auto-creating wallet", userId);
+                    Wallet newWallet = Wallet.builder()
+                            .userId(userId)
+                            .balance(BigDecimal.ZERO)
+                            .currency("VND")
+                            .status(WalletStatus.ACTIVE)
+                            .build();
+                    return walletRepository.save(newWallet);
+                });
         return mapToWalletResponse(wallet);
     }
 

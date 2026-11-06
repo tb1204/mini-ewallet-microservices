@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
-import { Wallet, User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, Sun, Moon, ShieldCheck } from 'lucide-react';
+import { Wallet, User, Mail, Phone, Lock, Eye, EyeOff, ArrowRight, Sun, Moon } from 'lucide-react';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -10,7 +10,6 @@ export default function RegisterPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,7 +22,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!fullName || !email || !phoneNumber || !password || !pin) {
+    if (!fullName || !email || !phoneNumber || !password) {
       setError('Vui lòng điền đầy đủ tất cả thông tin!');
       return;
     }
@@ -38,15 +37,10 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!/^\d{6}$/.test(pin)) {
-      setError('Mã PIN giao dịch phải bao gồm đúng 6 chữ số!');
-      return;
-    }
-
     try {
       setLoading(true);
-      // Register with ROLE_USER and 6-digit transaction PIN
-      const user = await register({ fullName, email, phoneNumber, password, pin });
+      // Register with ROLE_USER (transaction PIN will be set up later by user)
+      const user = await register({ fullName, email, phoneNumber, password });
       if (user?.role === 'ROLE_ADMIN') {
         navigate('/admin/dashboard');
       } else {
@@ -203,31 +197,6 @@ export default function RegisterPage() {
                   required
                 />
               </div>
-            </div>
-
-            {/* 6-digit Transaction PIN */}
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Mã PIN Giao Dịch (6 chữ số)
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <input
-                  id="input-register-pin"
-                  type="password"
-                  maxLength={6}
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                  placeholder="123456"
-                  className="w-full clean-input pl-9 pr-3 py-2.5 text-sm tracking-widest font-mono"
-                  required
-                />
-              </div>
-              <p className="text-[11px] text-slate-500 mt-1">
-                Dùng để bảo mật và xác nhận mỗi khi nạp, rút hoặc chuyển tiền.
-              </p>
             </div>
 
             {/* Submit */}

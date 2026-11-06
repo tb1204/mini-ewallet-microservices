@@ -21,7 +21,8 @@ public enum ErrorCode {
     INVALID_PIN(1009, "Mã PIN giao dịch không chính xác", HttpStatus.BAD_REQUEST),
     REFRESH_TOKEN_EXPIRED(1010, "Refresh token đã hết hạn, vui lòng đăng nhập lại", HttpStatus.UNAUTHORIZED),
     REFRESH_TOKEN_NOT_FOUND(1011, "Refresh token không tồn tại", HttpStatus.NOT_FOUND),
-    INVALID_INPUT(1012, "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST);
+    INVALID_INPUT(1012, "Dữ liệu đầu vào không hợp lệ", HttpStatus.BAD_REQUEST),
+    INVALID_OTP(1013, "Mã OTP xác thực không chính xác hoặc đã hết hạn", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

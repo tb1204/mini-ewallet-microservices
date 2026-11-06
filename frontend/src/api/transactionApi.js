@@ -21,6 +21,14 @@ export const transactionApi = {
   },
 
   /**
+   * Record external transaction into transaction history
+   * @param {Object} data - { serviceType, amount, fee, description, idempotencyKey, status }
+   */
+  recordTransaction: async (data) => {
+    return await axiosClient.post(`${TRANSACTION_SERVICE_URL}/record`, data);
+  },
+
+  /**
    * Retrieve transaction history for current user's wallet
    */
   getTransactionHistory: async () => {

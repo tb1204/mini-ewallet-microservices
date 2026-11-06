@@ -2,8 +2,13 @@ package com.example.transactionservice.service;
 
 import com.example.transactionservice.client.IdentityClient;
 import com.example.transactionservice.client.WalletClient;
+import com.example.transactionservice.config.RabbitMQConfig;
 import com.example.transactionservice.constants.ErrorCode;
+import com.example.transactionservice.constants.TransactionStatus;
+import com.example.transactionservice.constants.TransactionType;
+import com.example.transactionservice.dto.event.TransactionNotificationEvent;
 import com.example.transactionservice.dto.request.CreateTransferRequest;
+import com.example.transactionservice.dto.request.RecordTransactionRequest;
 import com.example.transactionservice.dto.request.VerifyPinRequest;
 import com.example.transactionservice.dto.response.ApiResponse;
 import com.example.transactionservice.dto.response.TransactionResponse;
@@ -15,6 +20,7 @@ import com.example.transactionservice.repository.TransactionRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -33,6 +39,7 @@ public class TransactionService {
     private final IdentityClient identityClient;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    private final RabbitTemplate rabbitTemplate;
 
     /**
      * Process P2P Money Transfer with PIN verification & Idempotency Key check.
@@ -107,6 +114,28 @@ public class TransactionService {
         UUID walletId = walletRes.getResult().getId();
         List<Transaction> transactions = transactionRepository.findAllByWalletId(walletId);
 
+        // If history is currently empty but user already has balance, seed initial top-up transaction
+        if (transactions.isEmpty() && walletRes.getResult().getBalance() != null 
+                && walletRes.getResult().getBalance().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            try {
+                Transaction initialTopup = Transaction.builder()
+                        .transactionCode("TOP" + System.currentTimeMillis() + "1001")
+                        .receiverWalletId(walletId)
+                        .senderWalletId(null)
+                        .serviceType(TransactionType.TOPUP)
+                        .amount(walletRes.getResult().getBalance())
+                        .fee(java.math.BigDecimal.ZERO)
+                        .status(TransactionStatus.SUCCESS)
+                        .description("Nạp tiền khởi tạo số dư ví ban đầu")
+                        .idempotencyKey("idemp-init-" + walletId)
+                        .build();
+                transactionRepository.save(initialTopup);
+                transactions = transactionRepository.findAllByWalletId(walletId);
+            } catch (Exception e) {
+                log.warn("Could not seed initial topup transaction: {}", e.getMessage());
+            }
+        }
+
         return transactions.stream()
                 .map(this::mapToTransactionResponse)
                 .collect(Collectors.toList());
@@ -128,6 +157,89 @@ public class TransactionService {
         Transaction transaction = transactionRepository.findByTransactionCode(code)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
         return mapToTransactionResponse(transaction);
+    }
+
+    /**
+     * Record an external transaction (Top-up, Withdraw, Savings, Bill).
+     */
+    public TransactionResponse recordTransaction(UUID userId, RecordTransactionRequest request) {
+        ApiResponse<WalletResponse> walletRes = walletClient.getWalletByUserId(userId);
+        if (walletRes == null || walletRes.getResult() == null) {
+            throw new AppException(ErrorCode.SENDER_WALLET_NOT_FOUND);
+        }
+
+        UUID walletId = walletRes.getResult().getId();
+
+        // Check idempotency
+        if (request.getIdempotencyKey() != null && !request.getIdempotencyKey().isBlank()) {
+            Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
+            if (existing.isPresent()) {
+                return mapToTransactionResponse(existing.get());
+            }
+        }
+
+        UUID senderWalletId = null;
+        UUID receiverWalletId = null;
+
+        if (request.getServiceType() == TransactionType.TOPUP) {
+            receiverWalletId = walletId;
+        } else {
+            senderWalletId = walletId;
+        }
+
+        String prefix = switch (request.getServiceType()) {
+            case TOPUP -> "TOP";
+            case WITHDRAW -> "WDR";
+            case TRANSFER -> "TXN";
+            default -> "SRV";
+        };
+
+        String txCode = prefix + System.currentTimeMillis() + String.format("%04d", new java.util.Random().nextInt(10000));
+
+        Transaction tx = Transaction.builder()
+                .transactionCode(txCode)
+                .senderWalletId(senderWalletId)
+                .receiverWalletId(receiverWalletId)
+                .serviceType(request.getServiceType())
+                .amount(request.getAmount())
+                .fee(request.getFee() != null ? request.getFee() : java.math.BigDecimal.ZERO)
+                .status(request.getStatus() != null ? request.getStatus() : TransactionStatus.SUCCESS)
+                .description(request.getDescription())
+                .idempotencyKey(request.getIdempotencyKey())
+                .build();
+
+        Transaction saved = transactionRepository.save(tx);
+        log.info("Recorded transaction {} ({}) for wallet {}", saved.getTransactionCode(), saved.getServiceType(), walletId);
+
+        // Publish real-time notification to RabbitMQ
+        try {
+            String title = switch (saved.getServiceType()) {
+                case TOPUP -> "Nạp tiền thành công";
+                case WITHDRAW -> "Rút tiền thành công";
+                case TRANSFER -> "Chuyển tiền thành công";
+                default -> "Giao dịch thành công";
+            };
+            String detail = String.format("Giao dịch %s số tiền %,d VNĐ thành công. Mã GD: %s",
+                    saved.getDescription() != null ? saved.getDescription() : "",
+                    saved.getAmount().longValue(),
+                    saved.getTransactionCode());
+
+            TransactionNotificationEvent event = TransactionNotificationEvent.builder()
+                    .userId(userId)
+                    .title(title)
+                    .detail(detail)
+                    .type(saved.getServiceType().name())
+                    .amount(saved.getAmount())
+                    .transactionId(saved.getTransactionCode())
+                    .build();
+
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.TRANSACTION_ROUTING_KEY, event);
+            log.info("Published TransactionNotificationEvent to RabbitMQ for user: {}", userId);
+        } catch (Exception e) {
+            log.warn("Failed to publish transaction notification to RabbitMQ: {}", e.getMessage());
+        }
+
+        return mapToTransactionResponse(saved);
     }
 
     public TransactionResponse mapToTransactionResponse(Transaction tx) {

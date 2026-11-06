@@ -22,7 +22,9 @@ public enum ErrorCode {
     WALLET_LOCKED(2004, "Ví điện tử đang bị khóa hoặc đóng băng", HttpStatus.BAD_REQUEST),
     INVALID_AMOUNT(2005, "Số tiền giao dịch phải lớn hơn 0", HttpStatus.BAD_REQUEST),
     SAVINGS_NOT_FOUND(2006, "Không tìm thấy sổ tiết kiệm", HttpStatus.NOT_FOUND),
-    SAVINGS_ALREADY_WITHDRAWN(2007, "Sổ tiết kiệm đã được tất toán/rút trước đó", HttpStatus.BAD_REQUEST);
+    SAVINGS_ALREADY_WITHDRAWN(2007, "Sổ tiết kiệm đã được tất toán/rút trước đó", HttpStatus.BAD_REQUEST),
+    LINKED_BANK_NOT_FOUND(2008, "Không tìm thấy tài khoản ngân hàng liên kết", HttpStatus.NOT_FOUND),
+    LINKED_BANK_ALREADY_EXISTS(2009, "Tài khoản ngân hàng này đã được liên kết trước đó", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;
