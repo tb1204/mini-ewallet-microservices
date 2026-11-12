@@ -84,13 +84,15 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           
           {/* Brand Logo */}
-          <Link to={user?.role === 'ROLE_ADMIN' ? '/admin/dashboard' : '/'} className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-sm">
-              <Wallet className="w-5 h-5" />
+          <Link to={user?.role === 'ROLE_ADMIN' ? '/admin/dashboard' : '/'} className="flex items-center gap-2.5 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 p-0.5 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+              <img src="/favicon.svg" alt="NovaPay Logo" className="w-full h-full rounded-[10px]" />
             </div>
             <div>
-              <span className="text-xl font-bold tracking-tight flex items-center gap-2">
-                MiniWallet
+              <span className="text-xl font-black tracking-tight flex items-center gap-2">
+                <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
+                  NovaPay
+                </span>
                 {user?.role === 'ROLE_ADMIN' && (
                   <span className="text-[10px] bg-purple-500/20 text-purple-600 px-2 py-0.5 rounded-full border border-purple-500/30 font-semibold uppercase tracking-wider hidden sm:inline-block">
                     Admin Portal
@@ -325,6 +327,12 @@ export default function Navbar() {
                       ))
                     )}
                   </div>
+
+                  {/* {notifications.length > 0 && (
+                    <div className="text-[10px] text-text-secondary text-center pt-2 border-t border-border-main font-mono">
+                      Hiển thị {notifications.length} thông báo gần nhất
+                    </div>
+                  )} */}
                 </div>
               )}
             </div>

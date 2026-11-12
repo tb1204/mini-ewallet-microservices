@@ -53,6 +53,27 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin cá nhân thành công", response));
     }
 
+    /**
+     * Authenticated POST /api/v1/users/avatar endpoint uploading avatar file to Cloudinary.
+     */
+    @PostMapping(value = "/avatar", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<UserResponse>> uploadAvatar(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        UserResponse response = userService.uploadAvatar(currentUserId, file);
+        return ResponseEntity.ok(ApiResponse.success("Tải ảnh đại diện lên Cloudinary thành công", response));
+    }
+
+    /**
+     * Authenticated DELETE /api/v1/users/avatar endpoint removing user avatar.
+     */
+    @DeleteMapping("/avatar")
+    public ResponseEntity<ApiResponse<UserResponse>> removeAvatar() {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        UserResponse response = userService.removeAvatar(currentUserId);
+        return ResponseEntity.ok(ApiResponse.success("Xóa ảnh đại diện thành công", response));
+    }
+
     /** Authenticated PUT /api/v1/users/change-password endpoint updating user password. */
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse<String>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
@@ -68,7 +89,7 @@ public class UserController {
     public ResponseEntity<ApiResponse<java.util.List<UserResponse>>> getAllUsers(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) com.example.identityservice.constants.Role role,
-            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) Integer isActive,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size,
             @RequestParam(defaultValue = "createdAt,desc") String sort) {
@@ -106,14 +127,15 @@ public class UserController {
     }
 
     /**
-     * Admin PUT /api/v1/users/{id} endpoint updating user details.
+     * Admin PUT /api/v1/users/{id} endpoint: Disallowed per fintech security compliance.
+     * Prevents internal fraud and maintains data integrity.
      */
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<UserResponse>> adminUpdateUser(
-            @PathVariable UUID id,
-            @Valid @RequestBody com.example.identityservice.dto.request.AdminUpdateUserRequest request) {
-        UserResponse response = userService.adminUpdateUser(id, request);
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin người dùng thành công", response));
+    public ResponseEntity<ApiResponse<Void>> adminUpdateUser(@PathVariable UUID id) {
+        throw new com.example.identityservice.exception.AppException(
+                com.example.identityservice.constants.ErrorCode.UNAUTHORIZED,
+                "Admin không có quyền chỉnh sửa thông tin cá nhân của người dùng nhằm đảm bảo an toàn tài khoản và phòng chống gian lận tài chính."
+        );
     }
 }
 

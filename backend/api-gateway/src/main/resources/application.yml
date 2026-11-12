@@ -73,11 +73,6 @@ spring:
               filters:
                 - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
 
-            - id: notification-service-ws
-              uri: lb://NOTIFICATION-SERVICE
-              predicates:
-                - Path=/ws-notifications/**
-
 eureka:
   client:
     enabled: true

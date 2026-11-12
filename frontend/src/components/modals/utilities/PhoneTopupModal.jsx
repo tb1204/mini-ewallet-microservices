@@ -122,11 +122,10 @@ export default function PhoneTopupModal({ onClose }) {
                     key={t.id}
                     type="button"
                     onClick={() => setSelectedTelco(t.id)}
-                    className={`py-2 px-1 text-xs font-bold rounded-xl border transition text-center ${
-                      selectedTelco === t.id
+                    className={`py-2 px-1 text-xs font-bold rounded-xl border transition text-center ${selectedTelco === t.id
                         ? `${t.color} border-emerald-500 shadow-sm ring-1 ring-emerald-500`
                         : 'border-border-main opacity-70 hover:opacity-100'
-                    }`}
+                      }`}
                   >
                     {t.name}
                   </button>
@@ -142,11 +141,10 @@ export default function PhoneTopupModal({ onClose }) {
                     key={amt}
                     type="button"
                     onClick={() => setSelectedAmount(amt)}
-                    className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center ${
-                      selectedAmount === amt
+                    className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center ${selectedAmount === amt
                         ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500 ring-1 ring-emerald-500'
                         : 'border-border-main text-text-primary hover:border-emerald-500/40'
-                    }`}
+                      }`}
                   >
                     <span>{amt.toLocaleString('vi-VN')} đ</span>
                     <span className="text-[10px] text-emerald-500 font-normal">Giảm 2%</span>
@@ -238,15 +236,15 @@ export default function PhoneTopupModal({ onClose }) {
             <div className="p-3.5 rounded-xl clean-card-subtle space-y-1.5 text-xs text-left">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Mã giao dịch:</span>
-                <span className="font-mono font-bold">{txResult.transactionCode}</span>
+                <span className="font-mono font-bold">{txResult?.transactionCode || 'GD-' + Date.now()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Trace ID (Zipkin):</span>
-                <span className="font-mono text-[10px] text-gray-400">{txResult.traceId}</span>
+                <span className="font-mono text-[10px] text-gray-400">{txResult?.traceId || 'TRC-' + Date.now()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Số tiền trừ ví:</span>
-                <span className="font-bold text-emerald-600">-{txResult.amount.toLocaleString('vi-VN')} VNĐ</span>
+                <span className="font-bold text-emerald-600">-{(txResult?.amount != null ? txResult.amount : finalPrice).toLocaleString('vi-VN')} VNĐ</span>
               </div>
             </div>
 

@@ -1,23 +1,10 @@
-import { useState, useEffect } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import Navbar from '../components/layout/Navbar';
-import PageSpinner from '../components/common/PageSpinner';
 
 export default function ProtectedRoute() {
   const { user, token } = useAuthStore();
   const location = useLocation();
-  const [isNavigating, setIsNavigating] = useState(false);
-
-  // Hiệu ứng loading xoay tròn ~1s khi chuyển đổi qua lại giữa các menu
-  useEffect(() => {
-    setIsNavigating(true);
-    const timer = setTimeout(() => {
-      setIsNavigating(false);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [location.pathname]);
 
   if (!user || !token) {
     return <Navigate to="/login" replace />;
@@ -27,9 +14,6 @@ export default function ProtectedRoute() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-(--bg-main) p-4 text-text-primary transition-colors duration-200">
         <div className="clean-card p-8 rounded-2xl max-w-md w-full text-center border-red-500/30">
-          <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/40 font-bold text-xl">
-            ⚠️
-          </div>
           <h2 className="text-xl font-bold mb-2">Tài khoản bị khóa</h2>
           <p className="text-text-secondary text-sm mb-6">
             Tài khoản của bạn hiện đang ở trạng thái BLOCKED. Vui lòng liên hệ Quản trị viên để biết thêm chi tiết.
@@ -51,13 +35,9 @@ export default function ProtectedRoute() {
     <div className="min-h-screen bg-(--bg-main) text-text-primary transition-colors duration-200 flex flex-col">
       <Navbar />
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
-        {isNavigating ? (
-          <PageSpinner message="Đang tải dữ liệu..." />
-        ) : (
-          <div key={location.pathname} className="animate-in fade-in-50 duration-200">
-            <Outlet />
-          </div>
-        )}
+        <div key={location.pathname} className="animate-in fade-in-50 duration-200">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

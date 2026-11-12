@@ -57,7 +57,7 @@ public class User {
 
     @Column(name = "is_active")
     @Builder.Default
-    private Boolean isActive = true;
+    private Integer isActive = 1;
 
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
@@ -79,7 +79,7 @@ public class User {
             this.kycStatus = KycStatus.VERIFIED;
         }
         if (this.isActive == null) {
-            this.isActive = true;
+            this.isActive = 1;
         }
     }
 

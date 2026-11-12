@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 export default function TransactionHistoryPage() {
-  const { transactions, fetchTransactions, isLoading, myWallet } = useWalletStore();
+  const { transactions, fetchTransactions, fetchMyWallet, isLoading, wallet } = useWalletStore();
   const [filterType, setFilterType] = useState('ALL');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -36,42 +36,12 @@ export default function TransactionHistoryPage() {
 
   useEffect(() => {
     fetchTransactions();
+    if (!wallet) {
+      fetchMyWallet();
+    }
   }, []);
 
-  const currentWalletId = myWallet?.id;
-
-  // Filter transactions
-  const filteredTx = (transactions || []).filter((tx) => {
-    const txType = tx.serviceType || tx.type;
-    if (filterType !== 'ALL' && txType !== filterType) return false;
-    if (filterStatus !== 'ALL' && tx.status !== filterStatus) return false;
-    if (searchKeyword.trim()) {
-      const kw = searchKeyword.toLowerCase();
-      const code = (tx.transactionCode || '').toLowerCase();
-      const desc = (tx.description || '').toLowerCase();
-      if (!code.includes(kw) && !desc.includes(kw)) return false;
-    }
-    return true;
-  });
-
-  // Calculate quick stats
-  const totalIn = (transactions || []).reduce((acc, tx) => {
-    const isTopup = (tx.serviceType === 'TOPUP' || tx.type === 'TOPUP');
-    const isReceive = tx.receiverWalletId && currentWalletId && tx.receiverWalletId === currentWalletId && tx.senderWalletId !== currentWalletId;
-    if ((isTopup || isReceive) && tx.status === 'SUCCESS') {
-      return acc + (parseFloat(tx.amount) || 0);
-    }
-    return acc;
-  }, 0);
-
-  const totalOut = (transactions || []).reduce((acc, tx) => {
-    const isWithdraw = (tx.serviceType === 'WITHDRAW' || tx.type === 'WITHDRAW');
-    const isSent = (tx.serviceType === 'TRANSFER' || tx.type === 'TRANSFER');
-    if ((isWithdraw || isSent) && tx.status === 'SUCCESS') {
-      return acc + (parseFloat(tx.amount) || 0);
-    }
-    return acc;
-  }, 0);
+  const currentWalletId = wallet?.id;
 
   const formatMoney = (val) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val || 0);
@@ -90,6 +60,7 @@ export default function TransactionHistoryPage() {
 
   // Helper to determine if transaction is incoming or outgoing
   const isIncoming = (tx) => {
+    if (!tx) return false;
     const txType = tx.serviceType || tx.type;
     if (txType === 'TOPUP') return true;
     if (currentWalletId && tx.receiverWalletId === currentWalletId && tx.senderWalletId !== currentWalletId) return true;
@@ -97,7 +68,7 @@ export default function TransactionHistoryPage() {
   };
 
   const getTxTypeBadge = (tx) => {
-    const txType = tx.serviceType || tx.type;
+    const txType = tx?.serviceType || tx?.type;
     switch (txType) {
       case 'TOPUP':
         return {
@@ -117,6 +88,30 @@ export default function TransactionHistoryPage() {
           icon: <Send className="w-3.5 h-3.5 text-indigo-500" />,
           color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
         };
+      case 'UTILITY_BILL':
+        return {
+          label: 'Hóa Đơn / ĐT',
+          icon: <Receipt className="w-3.5 h-3.5 text-amber-500" />,
+          color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+        };
+      case 'UTILITY_DATA':
+        return {
+          label: 'Data 4G/5G',
+          icon: <Receipt className="w-3.5 h-3.5 text-cyan-500" />,
+          color: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
+        };
+      case 'SAVINGS':
+        return {
+          label: 'Tiết Kiệm Ví',
+          icon: <Receipt className="w-3.5 h-3.5 text-blue-500" />,
+          color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+        };
+      case 'INSURANCE':
+        return {
+          label: 'Bảo Hiểm',
+          icon: <Receipt className="w-3.5 h-3.5 text-rose-500" />,
+          color: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+        };
       default:
         return {
           label: txType || 'Dịch Vụ',
@@ -125,6 +120,41 @@ export default function TransactionHistoryPage() {
         };
     }
   };
+
+  // Safe transactions list
+  const txList = Array.isArray(transactions) ? transactions : [];
+
+  // Filter transactions
+  const filteredTx = txList.filter((tx) => {
+    if (!tx) return false;
+    const txType = tx.serviceType || tx.type;
+    if (filterType !== 'ALL' && txType !== filterType) return false;
+    if (filterStatus !== 'ALL' && tx.status !== filterStatus) return false;
+    if (searchKeyword.trim()) {
+      const kw = searchKeyword.toLowerCase();
+      const code = (tx.transactionCode || '').toLowerCase();
+      const desc = (tx.description || '').toLowerCase();
+      if (!code.includes(kw) && !desc.includes(kw)) return false;
+    }
+    return true;
+  });
+
+  // Calculate quick stats
+  const totalIn = txList.reduce((acc, tx) => {
+    const isTopup = (tx.serviceType === 'TOPUP' || tx.type === 'TOPUP');
+    const isReceive = tx.receiverWalletId && currentWalletId && tx.receiverWalletId === currentWalletId && tx.senderWalletId !== currentWalletId;
+    if ((isTopup || isReceive) && tx.status === 'SUCCESS') {
+      return acc + (parseFloat(tx.amount) || 0);
+    }
+    return acc;
+  }, 0);
+
+  const totalOut = txList.reduce((acc, tx) => {
+    if (!isIncoming(tx) && tx.status === 'SUCCESS') {
+      return acc + (parseFloat(tx.amount) || 0);
+    }
+    return acc;
+  }, 0);
 
   return (
     <div className="space-y-6">
@@ -233,6 +263,10 @@ export default function TransactionHistoryPage() {
             <option value="TOPUP">Nạp tiền (Top-up)</option>
             <option value="TRANSFER">Chuyển tiền (Transfer)</option>
             <option value="WITHDRAW">Rút tiền (Withdraw)</option>
+            <option value="UTILITY_BILL">Hóa đơn / ĐT</option>
+            <option value="UTILITY_DATA">Data 4G/5G</option>
+            <option value="SAVINGS">Tiết kiệm ví</option>
+            <option value="INSURANCE">Bảo hiểm</option>
           </select>
 
           {/* Status Filter */}
@@ -427,7 +461,9 @@ export default function TransactionHistoryPage() {
 
               <div className="flex justify-between items-center py-1 border-b border-[var(--border-subtle)]">
                 <span className="text-[var(--text-secondary)]">Phí dịch vụ:</span>
-                <span className="text-emerald-600 font-semibold">Miễn phí (0 VNĐ)</span>
+                <span className={`font-semibold ${selectedTx.fee && Number(selectedTx.fee) > 0 ? 'text-purple-600 dark:text-purple-400 font-mono' : 'text-emerald-600'}`}>
+                  {selectedTx.fee && Number(selectedTx.fee) > 0 ? `${Number(selectedTx.fee).toLocaleString('vi-VN')} VNĐ` : 'Miễn phí (0 VNĐ)'}
+                </span>
               </div>
 
               <div className="flex justify-between items-center py-1 border-b border-[var(--border-subtle)]">

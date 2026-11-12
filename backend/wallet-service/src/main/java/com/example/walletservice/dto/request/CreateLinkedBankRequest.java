@@ -27,6 +27,6 @@ public class CreateLinkedBankRequest {
     @NotBlank(message = "Tên chủ tài khoản không được để trống")
     private String accountHolderName;
 
-    private Boolean isDefault;
+    private Integer isDefault; // 1: Mặc định, 0: Không mặc định
 }
 

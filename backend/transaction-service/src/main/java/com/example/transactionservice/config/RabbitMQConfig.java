@@ -13,6 +13,7 @@ public class RabbitMQConfig {
 
     public static final String EXCHANGE = "notification.exchange";
     public static final String TRANSACTION_ROUTING_KEY = "notification.transaction";
+    public static final String TX_OTP_EMAIL_ROUTING_KEY = "notification.email.tx-otp";
 
     @Bean
     public TopicExchange notificationExchange() {

@@ -71,7 +71,7 @@ public class AuthService {
                 .role(Role.ROLE_USER)
                 .avatarUrl(request.getAvatarUrl() != null ? request.getAvatarUrl() : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80")
                 .kycStatus(KycStatus.VERIFIED)
-                .isActive(true)
+                .isActive(1)
                 .build();
 
         User savedUser = userRepository.save(user);
@@ -107,7 +107,7 @@ public class AuthService {
                 .orElseThrow(() -> new AppException(ErrorCode.INVALID_CREDENTIALS));
 
         // 2. Ensure account is not locked/inactive
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
+        if (user.getIsActive() == null || user.getIsActive() != 1) {
             throw new AppException(ErrorCode.UNAUTHORIZED, "Tài khoản của bạn đã bị khóa");
         }
 
@@ -198,6 +198,9 @@ public class AuthService {
 
         user.setPinHash(passwordEncoder.encode(request.getNewPin()));
         userRepository.save(user);
+
+        // Notify user via RabbitMQ notification
+        publishSecurityNotification(userId, "Cập nhật mã PIN thành công", "Mã PIN bảo mật ví MiniWallet của bạn đã được thay đổi thành công.");
     }
 
     /**
@@ -254,6 +257,24 @@ public class AuthService {
         userRepository.save(user);
         otpService.clearOtp(userId);
         log.info("Successfully reset PIN for user: {}", user.getUsername());
+
+        // Notify user via RabbitMQ notification
+        publishSecurityNotification(userId, "Đặt lại mã PIN thành công", "Mã PIN ví của bạn đã được đặt lại thành công thông qua xác minh OTP Email.");
+    }
+
+    private void publishSecurityNotification(UUID userId, String title, String detail) {
+        try {
+            java.util.Map<String, Object> event = new java.util.HashMap<>();
+            event.put("userId", userId);
+            event.put("title", title);
+            event.put("detail", detail);
+            event.put("type", "SECURITY");
+            event.put("transactionId", "SEC-" + System.currentTimeMillis());
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, "notification.transaction", event);
+            log.info("Published security notification for user {}: {}", userId, title);
+        } catch (Exception e) {
+            log.warn("Failed to publish security notification to RabbitMQ: {}", e.getMessage());
+        }
     }
 
     /**
@@ -270,6 +291,7 @@ public class AuthService {
      * Map User entity to sanitized UserResponse DTO payload (excluding sensitive hashes).
      */
     public UserResponse mapToUserResponse(User user) {
+        boolean active = user.getIsActive() != null && user.getIsActive() == 1;
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -280,6 +302,7 @@ public class AuthService {
                 .avatarUrl(user.getAvatarUrl())
                 .kycStatus(user.getKycStatus())
                 .isActive(user.getIsActive())
+                .status(active ? "ACTIVE" : "BLOCKED")
                 .hasPin(user.getPinHash() != null)
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())

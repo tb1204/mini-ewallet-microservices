@@ -22,7 +22,7 @@ public class LinkedBankResponse {
     private String bankName;
     private String accountNumber;
     private String accountHolderName;
-    private boolean isDefault;
+    private Integer isDefault; // 1: Mặc định, 0: Không mặc định
     private String status;
     private Instant createdAt;
 }

@@ -14,7 +14,9 @@ public enum ErrorCode {
     CANNOT_TRANSFER_TO_SELF(1007, "Không thể tự chuyển tiền cho chính mình", HttpStatus.BAD_REQUEST),
     DUPLICATE_REQUEST(1008, "Yêu cầu đang được xử lý hoặc đã hoàn tất (Idempotency Key trùng lặp)", HttpStatus.CONFLICT),
     TRANSACTION_FAILED(1009, "Thực hiện giao dịch thất bại", HttpStatus.INTERNAL_SERVER_ERROR),
-    UNAUTHORIZED(1010, "Yêu cầu truy cập không hợp lệ", HttpStatus.UNAUTHORIZED);
+    UNAUTHORIZED(1010, "Yêu cầu truy cập không hợp lệ", HttpStatus.UNAUTHORIZED),
+    OTP_REQUIRED(1011, "Giao dịch vượt hạn mức yêu cầu xác thực mã OTP", HttpStatus.BAD_REQUEST),
+    INVALID_OTP(1012, "Mã OTP không chính xác hoặc đã hết hạn (120 giây)", HttpStatus.BAD_REQUEST);
 
     private final int code;
     private final String message;

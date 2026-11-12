@@ -13,7 +13,7 @@ export default function PageSpinner({ message = 'Đang tải dữ liệu...' }) 
         {/* Inner Counter-spinning ring */}
         <div 
           className="absolute w-6 h-6 rounded-full border-2 border-indigo-500/20 border-b-indigo-500 animate-spin"
-          style={{ animationDirection: 'reverse', animationDuration: '0.25s' }}
+          style={{ animationDirection: 'reverse', animationDuration: '0.5s' }}
         />
       </div>
 

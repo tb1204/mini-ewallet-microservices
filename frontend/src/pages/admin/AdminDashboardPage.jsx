@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CreditCard, ArrowLeftRight, DollarSign, TrendingUp, 
@@ -8,7 +8,8 @@ import { userApi, walletApi, transactionApi } from '../../api';
 
 /**
  * Admin Dashboard Overview Page
- * Computes live KPIs and metrics directly from microservices (Identity, Wallet, Transaction).
+ * Computes live KPIs, 6-month transaction metrics, and user growth directly from database entities
+ * (Identity, Wallet, Transaction Services).
  */
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
@@ -17,9 +18,11 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
+    lockedUsers: 0,
     totalWallets: 0,
     activeWallets: 0,
     lockedWallets: 0,
+    totalActiveBalance: 0,
     totalTransactions: 0,
     successTransactions: 0,
     totalVolume: 0,
@@ -29,104 +32,153 @@ export default function AdminDashboardPage() {
   const [txChartData, setTxChartData] = useState([]);
   const [userGrowthChart, setUserGrowthChart] = useState([]);
 
-  useEffect(() => {
-    let isMounted = true;
+  const parseDate = (dateVal) => {
+    if (!dateVal) return null;
+    if (Array.isArray(dateVal)) {
+      return new Date(dateVal[0], dateVal[1] - 1, dateVal[2] || 1);
+    }
+    const d = new Date(dateVal);
+    return isNaN(d.getTime()) ? null : d;
+  };
 
-    const fetchDashboardMetrics = async () => {
-      setIsLoading(true);
-      try {
-        const [usersResult, walletsResult, txResult] = await Promise.allSettled([
-          userApi.getAllUsers({ size: 100 }),
-          walletApi.getAllWallets({ size: 100 }),
-          transactionApi.getAllSystemTransactions({ size: 100 }),
-        ]);
+  const extractList = (res) => {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.result)) return res.result;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.content)) return res.content;
+    if (res.result && Array.isArray(res.result.content)) return res.result.content;
+    if (res.data && Array.isArray(res.data.content)) return res.data.content;
+    return [];
+  };
 
-        const rawUsers = usersResult.status === 'fulfilled'
-          ? (usersResult.value?.result || usersResult.value?.data || usersResult.value || [])
-          : [];
-        const usersList = Array.isArray(rawUsers) ? rawUsers : [];
+  const fetchDashboardMetrics = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [usersResult, walletsResult, txResult] = await Promise.allSettled([
+        userApi.getAllUsers({ size: 200 }),
+        walletApi.getAllWallets({ size: 200 }),
+        transactionApi.getAllSystemTransactions({ size: 200 }),
+      ]);
 
-        const rawWallets = walletsResult.status === 'fulfilled'
-          ? (walletsResult.value?.result || walletsResult.value?.data || walletsResult.value || [])
-          : [];
-        const walletsList = Array.isArray(rawWallets) ? rawWallets : [];
+      const usersList = usersResult.status === 'fulfilled'
+        ? extractList(usersResult.value)
+        : [];
 
-        const rawTxs = txResult.status === 'fulfilled'
-          ? (txResult.value?.result || txResult.value?.data || txResult.value || [])
-          : [];
-        const txList = Array.isArray(rawTxs) ? rawTxs : [];
+      const walletsList = walletsResult.status === 'fulfilled'
+        ? extractList(walletsResult.value)
+        : [];
 
-        // Compute metrics
-        const totalUsers = usersList.length;
-        const activeUsers = usersList.filter(u => u.status === 'ACTIVE').length;
+      const txList = txResult.status === 'fulfilled'
+        ? extractList(txResult.value)
+        : [];
 
-        const totalWallets = walletsList.length;
-        const activeWallets = walletsList.filter(w => w.status === 'ACTIVE').length;
-        const lockedWallets = walletsList.filter(w => w.status === 'LOCKED').length;
+      // 1. KPI Calculations directly from database
+      const totalUsers = usersList.length;
+      const activeUsers = usersList.filter(u => u.isActive === 1 || u.isActive === true || u.status === 'ACTIVE').length;
+      const lockedUsers = usersList.filter(u => u.isActive === 0 || u.isActive === false || u.status === 'BLOCKED' || u.status === 'LOCKED').length;
 
-        const totalTransactions = txList.length;
-        const successTransactions = txList.filter(t => t.status === 'SUCCESS').length;
-        const totalVolume = txList.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-        // Estimated system fee revenue (e.g. 5,000 VND flat withdrawal fee + P2P fee)
-        const totalRevenue = txList.reduce((acc, t) => {
-          if (t.type === 'WITHDRAW') return acc + 5000;
-          return acc;
-        }, 0);
+      const totalWallets = walletsList.length;
+      const activeWallets = walletsList.filter(w => w.status === 'ACTIVE').length;
+      const lockedWallets = walletsList.filter(w => w.status === 'LOCKED').length;
+      const totalActiveBalance = walletsList
+        .filter(w => w.status === 'ACTIVE')
+        .reduce((acc, w) => acc + (Number(w.balance) || 0), 0);
 
-        if (isMounted) {
-          setStats({
-            totalUsers,
-            activeUsers,
-            totalWallets,
-            activeWallets,
-            lockedWallets,
-            totalTransactions,
-            successTransactions,
-            totalVolume,
-            totalRevenue,
-          });
-
-          // Dynamic 6-month transaction simulation based on live ledger + historical projection
-          const currentMonth = new Date().getMonth() + 1;
-          const months = [
-            `Tháng ${Math.max(1, currentMonth - 5)}`,
-            `Tháng ${Math.max(1, currentMonth - 4)}`,
-            `Tháng ${Math.max(1, currentMonth - 3)}`,
-            `Tháng ${Math.max(1, currentMonth - 2)}`,
-            `Tháng ${Math.max(1, currentMonth - 1)}`,
-            `Tháng ${currentMonth} (Hiện tại)`,
-          ];
-
-          setTxChartData([
-            { month: months[0], volume: Math.max(10, Math.round(totalTransactions * 0.4)), amountStr: `${Math.max(10, Math.round(totalTransactions * 0.4))} GD`, growth: '+12%' },
-            { month: months[1], volume: Math.max(15, Math.round(totalTransactions * 0.55)), amountStr: `${Math.max(15, Math.round(totalTransactions * 0.55))} GD`, growth: '+15%' },
-            { month: months[2], volume: Math.max(20, Math.round(totalTransactions * 0.7)), amountStr: `${Math.max(20, Math.round(totalTransactions * 0.7))} GD`, growth: '+18%' },
-            { month: months[3], volume: Math.max(25, Math.round(totalTransactions * 0.8)), amountStr: `${Math.max(25, Math.round(totalTransactions * 0.8))} GD`, growth: '+8%' },
-            { month: months[4], volume: Math.max(30, Math.round(totalTransactions * 0.9)), amountStr: `${Math.max(30, Math.round(totalTransactions * 0.9))} GD`, growth: '+6%' },
-            { month: months[5], volume: Math.max(1, totalTransactions), amountStr: `${totalTransactions} GD (Live)`, growth: '+14%' },
-          ]);
-
-          setUserGrowthChart([
-            { month: months[0], count: Math.max(2, Math.round(totalUsers * 0.2)), totalUsers: Math.max(2, Math.round(totalUsers * 0.2)) },
-            { month: months[1], count: Math.max(2, Math.round(totalUsers * 0.3)), totalUsers: Math.max(4, Math.round(totalUsers * 0.4)) },
-            { month: months[2], count: Math.max(3, Math.round(totalUsers * 0.4)), totalUsers: Math.max(6, Math.round(totalUsers * 0.6)) },
-            { month: months[3], count: Math.max(2, Math.round(totalUsers * 0.2)), totalUsers: Math.max(8, Math.round(totalUsers * 0.75)) },
-            { month: months[4], count: Math.max(2, Math.round(totalUsers * 0.3)), totalUsers: Math.max(10, Math.round(totalUsers * 0.85)) },
-            { month: months[5], count: Math.max(1, totalUsers), totalUsers: totalUsers },
-          ]);
+      const totalTransactions = txList.length;
+      const successTransactions = txList.filter(t => t.status === 'SUCCESS').length;
+      const totalVolume = txList.reduce((acc, t) => {
+        if (t.status === 'SUCCESS' || !t.status) {
+          return acc + (Number(t.amount) || 0);
         }
-      } catch (err) {
-        console.error('Error fetching admin dashboard metrics:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
-    };
+        return acc;
+      }, 0);
 
-    fetchDashboardMetrics();
-    return () => {
-      isMounted = false;
-    };
+      const totalRevenue = txList.reduce((acc, t) => {
+        const fee = Number(t.fee);
+        if (!isNaN(fee) && fee > 0) return acc + fee;
+        if ((t.serviceType === 'WITHDRAW' || t.type === 'WITHDRAW') && t.status === 'SUCCESS') {
+          return acc + 5000;
+        }
+        return acc;
+      }, 0);
+
+      setStats({
+        totalUsers,
+        activeUsers,
+        lockedUsers,
+        totalWallets,
+        activeWallets,
+        lockedWallets,
+        totalActiveBalance,
+        totalTransactions,
+        successTransactions,
+        totalVolume,
+        totalRevenue,
+      });
+
+      // 2. Real 6-Month Rolling Data Computation
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonthIndex = now.getMonth(); // 0 to 11
+
+      // Generate 6 consecutive rolling months
+      const displayMonths = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonthIndex - i, 1);
+        const year = d.getFullYear();
+        const month = d.getMonth() + 1; // 1 to 12
+
+        displayMonths.push({
+          year,
+          month,
+          name: `Tháng ${month}`
+        });
+      }
+
+      // Compute per-month raw data from actual database records
+      const computedTxData = displayMonths.map((m) => {
+        const monthTxs = txList.filter((t) => {
+          const d = parseDate(t.createdAt);
+          if (!d) return false;
+          return d.getFullYear() === m.year && (d.getMonth() + 1) === m.month;
+        });
+        const volume = monthTxs.length;
+
+        return {
+          month: m.name,
+          volume,
+          amountStr: `${volume} GD`
+        };
+      });
+
+      const computedUserData = displayMonths.map((m) => {
+        const newUsers = usersList.filter((u) => {
+          const d = parseDate(u.createdAt);
+          if (!d) return false;
+          return d.getFullYear() === m.year && (d.getMonth() + 1) === m.month;
+        });
+        const count = newUsers.length;
+
+        return {
+          month: m.name,
+          count
+        };
+      });
+
+      setTxChartData(computedTxData);
+      setUserGrowthChart(computedUserData);
+
+    } catch (err) {
+      console.error('Error fetching admin dashboard metrics:', err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchDashboardMetrics();
+  }, [fetchDashboardMetrics]);
 
   const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' VNĐ';
 
@@ -141,17 +193,14 @@ export default function AdminDashboardPage() {
         <div>
           <h1 className="text-xl font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-600" />
-            Tổng Quan Hệ Thống (Microservices Live Data)
+            Tổng Quan Hệ Thống
           </h1>
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Dữ liệu đồng bộ trực tiếp từ Identity, Wallet & Transaction Services
-          </p>
         </div>
 
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-500/20">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span>Đang làm mới dữ liệu...</span>
+            <span>Đang tải dữ liệu...</span>
           </div>
         )}
       </div>
@@ -179,7 +228,7 @@ export default function AdminDashboardPage() {
                 <TrendingUp className="w-3.5 h-3.5" /> {stats.activeUsers} Hoạt động
               </span>
               <span className="text-[var(--text-muted)] text-[11px]">
-                {stats.totalUsers - stats.activeUsers} Đã khóa
+                {stats.lockedUsers} Đã khóa
               </span>
             </div>
           </div>
@@ -204,8 +253,8 @@ export default function AdminDashboardPage() {
               <span className="text-emerald-600 font-medium">
                 {stats.activeWallets} Đang hoạt động
               </span>
-              <span className="text-[var(--text-muted)] text-[11px]">
-                {stats.lockedWallets} Khóa Ví
+              <span className="text-[var(--text-muted)] text-[11px]" title="Tổng số dư các ví đang hoạt động">
+                {formatVND(stats.totalActiveBalance)}
               </span>
             </div>
           </div>
@@ -240,7 +289,7 @@ export default function AdminDashboardPage() {
         {/* KPI 4: Total Revenue */}
         <div className="clean-card p-5 rounded-xl border border-[var(--border-main)] hover:border-amber-500 transition space-y-3 group">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--text-secondary)]">Doanh Thu Thu Phí</span>
+            <span className="text-xs font-semibold text-[var(--text-secondary)]">Doanh thu</span>
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-500/20 group-hover:scale-105 transition">
               <DollarSign className="w-4 h-4" />
             </div>
@@ -248,12 +297,6 @@ export default function AdminDashboardPage() {
           <div>
             <div className="text-2xl font-bold text-amber-600 tracking-tight">
               {formatVND(stats.totalRevenue)}
-            </div>
-            <div className="flex items-center justify-between mt-1 text-xs">
-              <span className="text-emerald-600 font-medium flex items-center gap-0.5">
-                <TrendingUp className="w-3.5 h-3.5" /> Vận hành tự động
-              </span>
-              <span className="text-[var(--text-muted)] text-[11px]">Audit DB</span>
             </div>
           </div>
         </div>
@@ -268,7 +311,7 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-[var(--text-primary)]">
               <ArrowLeftRight className="w-4 h-4 text-indigo-600" />
-              Biểu Đồ Giao Dịch (Số lượng giao dịch 6 tháng)
+              Biểu đồ giao dịch
             </h2>
             <span className="text-xs font-mono font-medium text-indigo-600 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
               {stats.totalTransactions} Tổng GD
@@ -277,15 +320,15 @@ export default function AdminDashboardPage() {
 
           <div className="space-y-3 pt-1">
             {txChartData.map((item, idx) => {
-              const heightPercent = Math.min(100, Math.round((item.volume / maxTxVolume) * 100));
+              const heightPercent = maxTxVolume > 0 && item.volume > 0
+                ? Math.max(4, Math.round((item.volume / maxTxVolume) * 100))
+                : 0;
+
               return (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono">
                     <span className="text-[var(--text-secondary)] font-sans">{item.month}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-[var(--text-primary)]">{item.amountStr}</span>
-                      <span className="text-[10px] text-emerald-600 font-medium">{item.growth}</span>
-                    </div>
+                    <span className="font-semibold text-[var(--text-primary)]">{item.amountStr}</span>
                   </div>
                   <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
@@ -304,24 +347,24 @@ export default function AdminDashboardPage() {
           <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
             <h2 className="text-sm font-semibold flex items-center gap-2 text-[var(--text-primary)]">
               <UserPlus className="w-4 h-4 text-blue-600" />
-              Biểu Đồ Người Dùng (Tốc độ mở tài khoản mới)
+              Biểu đồ người dùng mới
             </h2>
             <span className="text-xs font-mono font-medium text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
-              {stats.totalUsers} Người Dùng
+              {stats.totalUsers} Người dùng
             </span>
           </div>
 
           <div className="space-y-3 pt-1">
             {userGrowthChart.map((item, idx) => {
-              const heightPercent = Math.min(100, Math.round((item.count / maxUserCount) * 100));
+              const heightPercent = maxUserCount > 0 && item.count > 0
+                ? Math.max(4, Math.round((item.count / maxUserCount) * 100))
+                : 0;
+
               return (
                 <div key={idx} className="space-y-1">
                   <div className="flex items-center justify-between text-xs font-mono">
                     <span className="text-[var(--text-secondary)] font-sans">{item.month}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-blue-600">+{item.count} người mới</span>
-                      <span className="text-[10px] text-[var(--text-muted)]">(Lũy kế: {item.totalUsers})</span>
-                    </div>
+                    <span className="font-semibold text-blue-600">+{item.count} người mới</span>
                   </div>
                   <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                     <div
@@ -393,4 +436,3 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
-

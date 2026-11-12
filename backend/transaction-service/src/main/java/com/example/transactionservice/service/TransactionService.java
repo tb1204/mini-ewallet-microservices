@@ -40,12 +40,21 @@ public class TransactionService {
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
     private final RabbitTemplate rabbitTemplate;
+    private final OtpService otpService;
 
     /**
-     * Process P2P Money Transfer with PIN verification & Idempotency Key check.
+     * Send Transaction OTP to user's email when transfer amount reaches OTP threshold.
+     */
+    public com.example.transactionservice.dto.response.SendOtpResponse sendTransferOtp(
+            UUID senderUserId, com.example.transactionservice.dto.request.SendOtpRequest request) {
+        return otpService.sendTransactionOtp(senderUserId, request.getAmount());
+    }
+
+    /**
+     * Process P2P Money Transfer with PIN verification, OTP validation & Idempotency Key check.
      */
     public TransactionResponse transferMoney(UUID senderUserId, String authHeader, CreateTransferRequest request) {
-        log.info("Processing transfer request for user: {}", senderUserId);
+        log.info("Processing transfer request for user: {}, amount: {}", senderUserId, request.getAmount());
 
         // 1. Verify PIN via Identity Service
         try {
@@ -61,7 +70,23 @@ public class TransactionService {
             throw new AppException(ErrorCode.INVALID_PIN);
         }
 
-        // 2. Check Idempotency Key if provided
+        // 2. Validate OTP if transfer amount reaches OTP Threshold
+        java.math.BigDecimal otpThreshold = otpService.getOtpThreshold();
+        if (request.getAmount() != null && request.getAmount().compareTo(otpThreshold) >= 0) {
+            log.info("Transfer amount {} >= OTP threshold {}. Checking OTP requirement...", request.getAmount(), otpThreshold);
+            if (request.getOtp() == null || request.getOtp().isBlank()) {
+                log.warn("Transfer requires OTP but no OTP provided by user {}", senderUserId);
+                throw new AppException(ErrorCode.OTP_REQUIRED);
+            }
+            boolean isOtpValid = otpService.verifyOtp(senderUserId, request.getOtp());
+            if (!isOtpValid) {
+                log.warn("Invalid or expired OTP submitted by user {}", senderUserId);
+                throw new AppException(ErrorCode.INVALID_OTP);
+            }
+            log.info("OTP verified successfully for high-value transfer of user {}", senderUserId);
+        }
+
+        // 3. Check Idempotency Key if provided
         String key = request.getIdempotencyKey();
         if (key != null && !key.isBlank()) {
             Optional<IdempotencyKey> existingKey = idempotencyService.checkKey(key);

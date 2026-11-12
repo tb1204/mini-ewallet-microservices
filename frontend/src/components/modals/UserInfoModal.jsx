@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Link, useNavigate } from 'react-router-dom';
-import { X, Mail, Phone, ShieldCheck, ShieldAlert, KeyRound, LogOut, Cpu, Edit3, Check, Save, Camera, Upload } from 'lucide-react';
+import { X, Mail, Phone, ShieldCheck, ShieldAlert, KeyRound, LogOut, Cpu, Edit3, Check, Save, Camera, Upload, Loader2, AlertCircle } from 'lucide-react';
 import LinkBankModal from './LinkBankModal';
+import { userApi } from '../../api/userApi';
 
 // Sample curated preset avatars
 const PRESET_AVATARS = [
@@ -25,6 +26,8 @@ export default function UserInfoModal({ isOpen, onClose }) {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
 
   if (!isOpen || !user) return null;
 
@@ -40,45 +43,87 @@ export default function UserInfoModal({ isOpen, onClose }) {
     navigate('/login');
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    updateUserProfile({ fullName, phoneNumber });
-    setSaveSuccess(true);
-    setIsEditing(false);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    try {
+      const res = await userApi.updateProfile({ fullName, avatarUrl: user.avatarUrl });
+      const updated = res?.result || res?.data;
+      updateUserProfile(updated || { fullName });
+      setSaveSuccess(true);
+      setIsEditing(false);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      console.error('Failed to update profile:', err);
+      alert(err.response?.data?.message || 'Cập nhật thất bại!');
+    }
   };
 
-  // Avatar file upload handler
-  const handleFileUpload = (e) => {
+  // Avatar file upload handler to Cloudinary via backend
+  const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Kích thước ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 2MB.');
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Kích thước ảnh vượt quá giới hạn 5MB!');
+      setTimeout(() => setAvatarError(''), 3000);
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64Url = event.target?.result;
-      updateUserProfile({ avatarUrl: base64Url });
+    setIsUploadingAvatar(true);
+    setAvatarError('');
+    try {
+      const res = await userApi.uploadAvatar(file);
+      const updated = res?.result || res?.data;
+      if (updated) {
+        updateUserProfile(updated);
+      }
       setShowAvatarPicker(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Failed to upload avatar to Cloudinary:', err);
+      setAvatarError(err.response?.data?.message || err.message || 'Tải ảnh lên thất bại!');
+      setTimeout(() => setAvatarError(''), 4000);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
-  const handleSelectPresetAvatar = (url) => {
-    updateUserProfile({ avatarUrl: url });
-    setShowAvatarPicker(false);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+  const handleSelectPresetAvatar = async (url) => {
+    setIsUploadingAvatar(true);
+    setAvatarError('');
+    try {
+      const res = await userApi.updateProfile({ fullName: user.fullName, avatarUrl: url });
+      const updated = res?.result || res?.data;
+      updateUserProfile(updated || { avatarUrl: url });
+      setShowAvatarPicker(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      console.error('Failed to set preset avatar:', err);
+      setAvatarError(err.response?.data?.message || 'Không thể lưu ảnh đại diện!');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
-  const handleRemoveAvatar = () => {
-    updateUserProfile({ avatarUrl: null });
-    setShowAvatarPicker(false);
+  const handleRemoveAvatar = async () => {
+    setIsUploadingAvatar(true);
+    setAvatarError('');
+    try {
+      const res = await userApi.removeAvatar();
+      const updated = res?.result || res?.data;
+      updateUserProfile(updated || { avatarUrl: null });
+      setShowAvatarPicker(false);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (err) {
+      console.error('Failed to remove avatar:', err);
+      setAvatarError(err.response?.data?.message || 'Không thể xóa ảnh đại diện!');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
   };
 
   return (
@@ -91,7 +136,7 @@ export default function UserInfoModal({ isOpen, onClose }) {
 
       {/* Right Slide-over Drawer Panel */}
       <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-96 bg-bg-card text-text-primary shadow-2xl border-l border-border-main flex flex-col justify-between transform transition-transform duration-300 ease-in-out animate-slide-left">
-        
+
         {/* Drawer Header */}
         <div className="p-6 border-b border-border-main flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -157,18 +202,37 @@ export default function UserInfoModal({ isOpen, onClose }) {
               className="hidden"
             />
 
+            {avatarError && (
+              <div className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 text-xs flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{avatarError}</span>
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
+                disabled={isUploadingAvatar}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5" /> Tải Ảnh Từ Máy
+                {isUploadingAvatar ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Đang tải lên ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Tải Ảnh Từ Máy</span>
+                  </>
+                )}
               </button>
 
               {user.avatarUrl && (
                 <button
+                  disabled={isUploadingAvatar}
                   onClick={handleRemoveAvatar}
-                  className="py-2 px-3 rounded-xl clean-card-subtle text-red-500 text-xs font-bold hover:bg-red-500/10 transition cursor-pointer"
+                  className="py-2 px-3 rounded-xl clean-card-subtle text-red-500 text-xs font-bold hover:bg-red-500/10 disabled:opacity-50 transition cursor-pointer"
                 >
                   Xóa Ảnh
                 </button>
@@ -195,7 +259,7 @@ export default function UserInfoModal({ isOpen, onClose }) {
 
         {/* Drawer Body - User Details & Edit Form */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1 text-xs">
-          
+
           {saveSuccess && (
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 font-semibold flex items-center gap-2">
               <Check className="w-4 h-4" /> Đã cập nhật thông tin cá nhân!

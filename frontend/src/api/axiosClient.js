@@ -58,8 +58,8 @@ axiosClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 Unauthorized
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+    // Handle 401 Unauthorized or 403 Forbidden due to expired/invalid token
+    if (error.response && (error.response.status === 401 || error.response.status === 403) && !originalRequest._retry) {
       // Avoid infinite loop if the failed request was the refresh-token endpoint itself or login endpoint
       if (originalRequest.url?.includes('/v1/auth/refresh-token') || originalRequest.url?.includes('/v1/auth/login')) {
         return Promise.reject(error);

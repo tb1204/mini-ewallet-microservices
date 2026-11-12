@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
+    private final CloudinaryService cloudinaryService;
 
     /**
      * Retrieve user profile details by UUID:
@@ -83,6 +85,34 @@ public class UserService {
     }
 
     /**
+     * Upload avatar image to Cloudinary and update user's avatarUrl.
+     */
+    @Transactional
+    public UserResponse uploadAvatar(UUID userId, MultipartFile file) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        String avatarUrl = cloudinaryService.uploadAvatar(file, userId);
+        user.setAvatarUrl(avatarUrl);
+        User updatedUser = userRepository.save(user);
+        return authService.mapToUserResponse(updatedUser);
+    }
+
+    /**
+     * Remove user avatar.
+     */
+    @Transactional
+    public UserResponse removeAvatar(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
+
+        cloudinaryService.deleteAvatar(userId);
+        user.setAvatarUrl(null);
+        User updatedUser = userRepository.save(user);
+        return authService.mapToUserResponse(updatedUser);
+    }
+
+    /**
      * Change user password:
      * - Verify old password against BCrypt hash
      * - Encode new password and persist to Database
@@ -105,7 +135,7 @@ public class UserService {
     /**
      * Admin/Staff Query: Retrieve paginated users with optional keyword, role, and active status filters.
      */
-    public Page<UserResponse> getAllUsers(String keyword, Role role, Boolean isActive, Pageable pageable) {
+    public Page<UserResponse> getAllUsers(String keyword, Role role, Integer isActive, Pageable pageable) {
         Page<User> usersPage = userRepository.searchUsers(keyword, role, isActive, pageable);
         return usersPage.map(authService::mapToUserResponse);
     }
@@ -118,7 +148,8 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_EXISTED));
 
-        boolean newActive = user.getIsActive() == null || !user.getIsActive();
+        Integer current = user.getIsActive();
+        int newActive = (current != null && current == 1) ? 0 : 1;
         user.setIsActive(newActive);
         User saved = userRepository.save(user);
         return authService.mapToUserResponse(saved);

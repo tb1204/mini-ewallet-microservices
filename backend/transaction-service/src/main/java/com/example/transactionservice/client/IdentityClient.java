@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.util.UUID;
 
-@FeignClient(name = "identity-service", url = "${identity.service.url:http://localhost:8081}", configuration = FeignClientConfig.class)
+@FeignClient(name = "identity-service", configuration = FeignClientConfig.class)
 public interface IdentityClient {
 
     @GetMapping("/api/v1/users/search/{identifier}")

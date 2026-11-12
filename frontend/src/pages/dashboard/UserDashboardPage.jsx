@@ -69,7 +69,7 @@ export default function UserDashboardPage() {
       <div className="clean-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Xin chào, {user?.fullName}! 👋
+            Xin chào, {user?.fullName}! 
           </h1>
         </div>
 

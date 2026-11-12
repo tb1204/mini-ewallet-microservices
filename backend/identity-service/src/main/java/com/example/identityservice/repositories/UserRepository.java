@@ -46,7 +46,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     org.springframework.data.domain.Page<User> searchUsers(
             @org.springframework.data.repository.query.Param("keyword") String keyword,
             @org.springframework.data.repository.query.Param("role") com.example.identityservice.constants.Role role,
-            @org.springframework.data.repository.query.Param("isActive") Boolean isActive,
+            @org.springframework.data.repository.query.Param("isActive") Integer isActive,
             org.springframework.data.domain.Pageable pageable);
 }
 

@@ -28,5 +28,7 @@ public class CreateTransferRequest {
     @Pattern(regexp = "^\\d{6}$", message = "Mã PIN phải bao gồm đúng 6 chữ số")
     private String pin;
 
+    private String otp;
+
     private String idempotencyKey;
 }

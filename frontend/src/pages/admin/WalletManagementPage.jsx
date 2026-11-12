@@ -186,7 +186,7 @@ export default function WalletManagementPage() {
       <div>
         <h1 className="text-xl font-bold flex items-center gap-2 text-[var(--text-primary)] tracking-tight">
           <CreditCard className="w-5 h-5 text-blue-600" />
-          Quản Lý Ví Điện Tử (Microservice Wallet DB)
+          Quản Lý Ví Điện Tử
         </h1>
       </div>
 
@@ -252,6 +252,9 @@ export default function WalletManagementPage() {
           <table className="w-full text-left text-xs text-[var(--text-primary)]">
             <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-medium select-none">
               <tr>
+                {/* STT Column Header */}
+                <th className="p-3 w-12 text-center">STT</th>
+
                 {/* ID Header */}
                 <th
                   onClick={() => handleSort('id')}
@@ -302,7 +305,7 @@ export default function WalletManagementPage() {
             <tbody className="divide-y divide-[var(--border-main)]">
               {isFetching ? (
                 <tr>
-                  <td colSpan="5" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                  <td colSpan="6" className="text-center py-12 text-[var(--text-secondary)] text-xs">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
                       <span>Đang tải danh sách ví điện tử...</span>
@@ -310,13 +313,20 @@ export default function WalletManagementPage() {
                   </td>
                 </tr>
               ) : paginatedWallets.length > 0 ? (
-                paginatedWallets.map((w) => (
-                  <tr key={w.id} className="hover:bg-[var(--table-hover-bg)] transition">
-                    
-                    {/* Wallet ID */}
-                    <td className="p-3 font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                      {w.id}
-                    </td>
+                paginatedWallets.map((w, index) => {
+                  const stt = (currentPage - 1) * pageSize + index + 1;
+                  return (
+                    <tr key={w.id} className="hover:bg-[var(--table-hover-bg)] transition">
+                      
+                      {/* STT Column */}
+                      <td className="p-3 text-center font-medium text-[var(--text-secondary)] text-[11px] w-12">
+                        {stt}
+                      </td>
+
+                      {/* Wallet ID */}
+                      <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 select-all" title={w.id}>
+                        {w.id}
+                      </td>
 
                     {/* Owner */}
                     <td className="p-3">
@@ -379,14 +389,15 @@ export default function WalletManagementPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" className="text-center py-8 text-[var(--text-muted)] text-xs">
-                    Không tìm thấy ví điện tử phù hợp.
-                  </td>
-                </tr>
-              )}
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="6" className="text-center py-8 text-[var(--text-muted)] text-xs">
+                  Không tìm thấy ví điện tử phù hợp.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>

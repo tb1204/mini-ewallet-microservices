@@ -22,7 +22,8 @@ public class UserResponse {
     private Role role;
     private String avatarUrl;
     private KycStatus kycStatus;
-    private Boolean isActive;
+    private Integer isActive;
+    private String status;
     private Boolean hasPin;
     private Instant createdAt;
     private Instant updatedAt;

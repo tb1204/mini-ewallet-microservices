@@ -17,5 +17,5 @@ public class AdminUpdateUserRequest {
     private String email;
     private String phoneNumber;
     private Role role;
-    private Boolean isActive;
+    private Integer isActive;
 }

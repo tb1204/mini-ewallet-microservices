@@ -63,7 +63,7 @@ public class LinkedBankService {
 
         // If user currently has 0 active accounts, this account automatically becomes default
         long activeCount = linkedBankAccountRepository.countByUserIdAndStatus(userId, "ACTIVE");
-        boolean isDefault = (activeCount == 0) || Boolean.TRUE.equals(request.getIsDefault());
+        boolean isDefault = (activeCount == 0) || (request.getIsDefault() != null && request.getIsDefault() == 1);
 
         if (isDefault) {
             linkedBankAccountRepository.clearDefaultByUserId(userId);
@@ -123,7 +123,7 @@ public class LinkedBankService {
                 .bankName(entity.getBankName())
                 .accountNumber(entity.getAccountNumber())
                 .accountHolderName(entity.getAccountHolderName())
-                .isDefault(entity.isDefault())
+                .isDefault(entity.isDefault() ? 1 : 0)
                 .status(entity.getStatus())
                 .createdAt(entity.getCreatedAt())
                 .build();

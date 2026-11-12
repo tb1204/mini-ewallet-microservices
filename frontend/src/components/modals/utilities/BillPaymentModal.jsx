@@ -254,11 +254,11 @@ export default function BillPaymentModal({ onClose }) {
             <div className="p-3.5 rounded-xl clean-card-subtle space-y-1.5 text-xs text-left">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Mã giao dịch:</span>
-                <span className="font-mono font-bold">{txResult.transactionCode}</span>
+                <span className="font-mono font-bold">{txResult?.transactionCode || 'GD-' + Date.now()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Số tiền trừ ví:</span>
-                <span className="font-bold text-emerald-600">-{txResult.amount.toLocaleString('vi-VN')} VNĐ</span>
+                <span className="font-bold text-emerald-600">-{(txResult?.amount != null ? txResult.amount : billData?.amount || 0).toLocaleString('vi-VN')} VNĐ</span>
               </div>
             </div>
 

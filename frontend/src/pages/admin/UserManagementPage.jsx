@@ -1,21 +1,21 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { 
-  Users, Search, CheckCircle2, Eye, Edit3, Lock, Unlock, X, 
+  Users, Search, CheckCircle2, Eye, Lock, Unlock, X, 
   ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, AlertCircle 
 } from 'lucide-react';
 
 /**
  * USER MANAGEMENT PAGE (UserManagementPage)
- * - Standard 7-Column Table Layout: ID, Full Name, Email, Phone Number, Role, Status, Actions
+ * - Standard Table Layout: STT, ID, Full Name, Email, Phone Number, Role, Status, Actions
  * - Connected directly to identity-service endpoints via useAuthStore / userApi
  * - Integrated Multi-field Search (ID, Name, Email, Phone) & Dual Filter (Status + Role)
  * - 3-State Sorting Mechanism (Default createdAt DESC -> ASC -> DESC -> Default)
  * - Vietnamese alphabetical sorting support (localeCompare) & Client-side Pagination (5, 10, 20)
- * - Direct User Account Lock/Unlock & User Information / Role Edit Modal
+ * - Fintech Security Standard: Admin only has View Detail & Lock/Unlock Account permissions
  */
 export default function UserManagementPage() {
-  const { registeredUsers, fetchAllUsers, toggleUserStatus, updateUserInfo, user: currentUser } = useAuthStore();
+  const { registeredUsers, fetchAllUsers, toggleUserStatus, user: currentUser } = useAuthStore();
   
   // Loading and Error States
   const [isFetching, setIsFetching] = useState(false);
@@ -37,16 +37,7 @@ export default function UserManagementPage() {
 
   // Modals & Feedback
   const [selectedUser, setSelectedUser] = useState(null);
-  const [editingUser, setEditingUser] = useState(null);
   const [msg, setMsg] = useState('');
-
-  // Form State for Edit Modal
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phoneNumber: '',
-    role: 'ROLE_USER'
-  });
 
   // Fetch all users on mount
   useEffect(() => {
@@ -83,35 +74,6 @@ export default function UserManagementPage() {
     } catch (err) {
       console.error('Failed to toggle user status:', err);
       setErrorMessage(err.message || 'Lỗi khi thay đổi trạng thái tài khoản');
-    } finally {
-      setIsActionLoading(false);
-    }
-  };
-
-  const handleOpenEdit = (userToEdit) => {
-    setEditingUser(userToEdit);
-    setFormData({
-      fullName: userToEdit.fullName || '',
-      email: userToEdit.email || '',
-      phoneNumber: userToEdit.phoneNumber || '',
-      role: userToEdit.role || 'ROLE_USER'
-    });
-  };
-
-  const handleSaveEdit = async (e) => {
-    e.preventDefault();
-    if (!editingUser) return;
-
-    setIsActionLoading(true);
-    setErrorMessage('');
-    try {
-      await updateUserInfo(editingUser.id, formData);
-      setMsg(`Đã cập nhật thông tin cho "${formData.fullName}"!`);
-      setEditingUser(null);
-      setTimeout(() => setMsg(''), 3000);
-    } catch (err) {
-      console.error('Failed to update user:', err);
-      setErrorMessage(err.message || 'Lỗi khi cập nhật thông tin người dùng');
     } finally {
       setIsActionLoading(false);
     }
@@ -266,7 +228,6 @@ export default function UserManagementPage() {
             >
               <option value="ALL">Tất cả Vai Trò</option>
               <option value="ROLE_ADMIN">ADMIN</option>
-              <option value="ROLE_STAFF">STAFF</option>
               <option value="ROLE_USER">USER</option>
             </select>
           </div>
@@ -277,6 +238,9 @@ export default function UserManagementPage() {
           <table className="w-full text-left text-xs text-[var(--text-primary)]">
             <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-medium select-none">
               <tr>
+                {/* STT Column Header */}
+                <th className="p-3 w-12 text-center">STT</th>
+
                 {/* ID Column Header */}
                 <th
                   onClick={() => handleSort('id')}
@@ -349,7 +313,7 @@ export default function UserManagementPage() {
             <tbody className="divide-y divide-[var(--border-main)]">
               {isFetching ? (
                 <tr>
-                  <td colSpan="7" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                  <td colSpan="8" className="text-center py-12 text-[var(--text-secondary)] text-xs">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                       <span>Đang tải danh sách người dùng...</span>
@@ -357,13 +321,19 @@ export default function UserManagementPage() {
                   </td>
                 </tr>
               ) : paginatedUsers.length > 0 ? (
-                paginatedUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-[var(--table-hover-bg)] transition">
-                    
-                    {/* User ID Column */}
-                    <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 max-w-[100px] truncate" title={u.id}>
-                      {u.id.split('-')[0]}...
-                    </td>
+                paginatedUsers.map((u, index) => {
+                  const stt = (currentPage - 1) * pageSize + index + 1;
+                  return (
+                    <tr key={u.id} className="hover:bg-[var(--table-hover-bg)] transition">
+                      {/* STT Column */}
+                      <td className="p-3 text-center font-medium text-[var(--text-secondary)] text-[11px] w-12">
+                        {stt}
+                      </td>
+
+                      {/* User ID Column */}
+                      <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 select-all" title={u.id}>
+                        {u.id}
+                      </td>
 
                     {/* Name */}
                     <td className="p-3 font-medium text-[var(--text-primary)]">
@@ -391,8 +361,6 @@ export default function UserManagementPage() {
                         className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                           u.role === 'ROLE_ADMIN'
                             ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20'
-                            : u.role === 'ROLE_STAFF'
-                            ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
                         }`}
                       >
@@ -424,14 +392,6 @@ export default function UserManagementPage() {
                           Xem
                         </button>
 
-                        <button
-                          onClick={() => handleOpenEdit(u)}
-                          className="px-2.5 py-1 rounded-lg clean-card-subtle text-xs font-medium hover:border-blue-500 border border-[var(--border-main)] flex items-center gap-1 transition cursor-pointer text-blue-600"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Sửa
-                        </button>
-
                         {u.id !== currentUser?.id ? (
                           <button
                             disabled={isActionLoading}
@@ -458,14 +418,15 @@ export default function UserManagementPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="7" className="text-center py-8 text-[var(--text-muted)] text-xs">
-                    Không tìm thấy người dùng phù hợp.
-                  </td>
-                </tr>
-              )}
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="8" className="text-center py-8 text-[var(--text-muted)] text-xs">
+                  Không tìm thấy người dùng phù hợp.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>
@@ -571,8 +532,6 @@ export default function UserManagementPage() {
                   className={`px-2 py-0.5 rounded text-[11px] font-medium ${
                     selectedUser.role === 'ROLE_ADMIN'
                       ? 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20'
-                      : selectedUser.role === 'ROLE_STAFF'
-                      ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'
                   }`}
                 >
@@ -603,98 +562,6 @@ export default function UserManagementPage() {
                 Đóng
               </button>
             </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Edit User & Assign Role Modal */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="clean-card w-full max-w-md p-5 space-y-4 rounded-xl border border-[var(--border-main)] shadow-xl relative animate-in zoom-in-95 duration-150">
-            
-            <button
-              onClick={() => setEditingUser(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-card-subtle)]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center gap-3 border-b border-[var(--border-main)] pb-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-600 flex items-center justify-center font-bold">
-                <Edit3 className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-sm text-[var(--text-primary)]">Chỉnh Sửa Thông Tin</h3>
-                <span className="text-xs text-[var(--text-secondary)] font-mono">{editingUser.id}</span>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
-              <div>
-                <label className="block text-[var(--text-secondary)] font-medium mb-1">Họ & Tên:</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  className="w-full clean-input px-3 py-2 text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[var(--text-secondary)] font-medium mb-1">Địa Chỉ Email:</label>
-                <input
-                  type="email"
-                  required
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="w-full clean-input px-3 py-2 text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[var(--text-secondary)] font-medium mb-1">Số Điện Thoại:</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.phoneNumber}
-                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                  className="w-full clean-input px-3 py-2 text-xs font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[var(--text-secondary)] font-medium mb-1">Vai Trò (Role):</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                  className="w-full clean-input px-3 py-2 text-xs font-medium"
-                >
-                  <option value="ROLE_USER">USER (Khách Hàng Ví)</option>
-                  <option value="ROLE_STAFF">STAFF (Nhân Viên CSKH)</option>
-                  <option value="ROLE_ADMIN">ADMIN (Quản Trị Viên)</option>
-                </select>
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-3.5 py-1.5 rounded-lg clean-card-subtle border border-[var(--border-main)] font-medium text-xs transition cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={isActionLoading}
-                  className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {isActionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  Lưu Thay Đổi
-                </button>
-              </div>
-            </form>
 
           </div>
         </div>

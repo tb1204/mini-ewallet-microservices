@@ -1,0 +1,21 @@
+# Environment variables (MUST NEVER BE COMMITTED)
+.env
+.env.local
+.env.*.local
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+
+# Build outputs
+**/target/
+**/build/
+**/dist/
+**/node_modules/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+

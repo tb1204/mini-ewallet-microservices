@@ -206,11 +206,11 @@ export default function DataPackageModal({ onClose }) {
             <div className="p-3.5 rounded-xl clean-card-subtle space-y-1.5 text-xs text-left">
               <div className="flex justify-between">
                 <span className="text-text-secondary">Mã GD:</span>
-                <span className="font-mono font-bold">{txResult.transactionCode}</span>
+                <span className="font-mono font-bold">{txResult?.transactionCode || 'GD-' + Date.now()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Giá gói:</span>
-                <span className="font-bold text-emerald-600">-{txResult.amount.toLocaleString('vi-VN')} VNĐ</span>
+                <span className="font-bold text-emerald-600">-{(txResult?.amount != null ? txResult.amount : selectedPkg?.price || 0).toLocaleString('vi-VN')} VNĐ</span>
               </div>
             </div>
 

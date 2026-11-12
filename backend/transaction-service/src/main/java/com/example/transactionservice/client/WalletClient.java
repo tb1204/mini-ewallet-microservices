@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
 
-@FeignClient(name = "wallet-service", url = "${wallet.service.url:http://localhost:8082}", configuration = FeignClientConfig.class)
+@FeignClient(name = "wallet-service", configuration = FeignClientConfig.class)
 public interface WalletClient {
 
     @GetMapping("/api/v1/wallets/internal/user/{userId}")

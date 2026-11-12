@@ -7,14 +7,26 @@ const TRANSACTION_SERVICE_URL = '/v1/transactions';
  */
 export const transactionApi = {
   /**
-   * Execute P2P money transfer via Saga orchestration
-   * @param {Object} data - { recipient, amount, pin, description, idempotencyKey }
+   * Request 6-digit transaction OTP via email for high-value transfer (>= threshold)
+   * @param {Object} data - { recipient, amount }
    */
-  transferP2P: async ({ recipient, amount, pin, description, idempotencyKey }) => {
+  sendTransferOtp: async ({ recipient, amount }) => {
+    return await axiosClient.post(`${TRANSACTION_SERVICE_URL}/send-otp`, {
+      recipient,
+      amount: parseFloat(amount),
+    });
+  },
+
+  /**
+   * Execute P2P money transfer via Saga orchestration
+   * @param {Object} data - { recipient, amount, pin, otp, description, idempotencyKey }
+   */
+  transferP2P: async ({ recipient, amount, pin, otp, description, idempotencyKey }) => {
     return await axiosClient.post(`${TRANSACTION_SERVICE_URL}/transfer`, {
       recipient,
       amount: parseFloat(amount),
       pin,
+      otp,
       description,
       idempotencyKey,
     });

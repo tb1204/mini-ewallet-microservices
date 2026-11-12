@@ -25,6 +25,24 @@ public class TransactionController {
     private final TransactionService transactionService;
 
     /**
+     * Send Transaction OTP to user's registered email when transfer amount reaches OTP threshold.
+     */
+    @PostMapping("/send-otp")
+    public ResponseEntity<ApiResponse<com.example.transactionservice.dto.response.SendOtpResponse>> sendTransferOtp(
+            @Valid @RequestBody com.example.transactionservice.dto.request.SendOtpRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        com.example.transactionservice.dto.response.SendOtpResponse response = 
+                transactionService.sendTransferOtp(currentUserId, request);
+        return ResponseEntity.ok(
+                ApiResponse.<com.example.transactionservice.dto.response.SendOtpResponse>builder()
+                        .message("Gửi mã OTP xác thực thành công")
+                        .result(response)
+                        .data(response)
+                        .build()
+        );
+    }
+
+    /**
      * Execute P2P Money Transfer from current authenticated user to recipient.
      */
     @PostMapping("/transfer")

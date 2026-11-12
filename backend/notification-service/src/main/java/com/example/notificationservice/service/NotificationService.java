@@ -50,12 +50,24 @@ public class NotificationService {
     }
 
     /**
-     * Retrieve all notifications for a given user.
+     * Retrieve all notifications for a given user (limits to top 10 most recent).
+     * If user has no notifications, automatically seed a welcome notification.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<NotificationResponse> getUserNotifications(UUID userId) {
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
-                .stream()
+        List<Notification> list = notificationRepository.findTop10ByUserIdOrderByCreatedAtDesc(userId);
+        if (list.isEmpty()) {
+            Notification welcomeNotif = Notification.builder()
+                    .userId(userId)
+                    .title("Chào mừng đến với MiniWallet! \uD83C\uDF89")
+                    .detail("Hệ thống thông báo thời gian thực & bảo mật OTP qua Email đã được kích hoạt thành công.")
+                    .type("SYSTEM")
+                    .isRead(false)
+                    .build();
+            notificationRepository.save(welcomeNotif);
+            list = notificationRepository.findTop10ByUserIdOrderByCreatedAtDesc(userId);
+        }
+        return list.stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

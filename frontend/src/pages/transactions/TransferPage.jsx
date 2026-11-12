@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWalletStore } from '../../store/useWalletStore';
-import { userApi, walletApi } from '../../api';
+import { userApi, walletApi, transactionApi, auditApi } from '../../api';
 import {
   Send,
   Building2,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PinRequiredModal from '../../components/modals/PinRequiredModal';
+import OtpVerificationModal from '../../components/modals/OtpVerificationModal';
 
 // Popular Vietnamese Banks with NAPAS support and official VietQR logos
 const POPULAR_BANKS = [
@@ -66,12 +67,28 @@ export default function TransferPage() {
   const [loading, setLoading] = useState(false);
   const [successTx, setSuccessTx] = useState(null);
 
+  // OTP Modal State for High-Value Transfers (>= OTP_THRESHOLD)
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpMaskedEmail, setOtpMaskedEmail] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [pendingPin, setPendingPin] = useState('');
+  const [otpThreshold, setOtpThreshold] = useState(2000000);
+
   // Quick preset amounts
   const presets = [50000, 100000, 200000, 500000, 1000000];
 
   useEffect(() => {
     generateIdempotencyKey();
     fetchMyWallet();
+
+    // Fetch dynamic OTP threshold from system configs
+    auditApi.getSystemConfigByKey('OTP_THRESHOLD')
+      .then((res) => {
+        const val = res?.result?.value || res?.data?.value;
+        if (val && !isNaN(Number(val))) setOtpThreshold(Number(val));
+      })
+      .catch(() => {});
   }, []);
 
   // Auto-search user by identifier (P2P mode)
@@ -205,6 +222,39 @@ export default function TransferPage() {
       return;
     }
 
+    const numAmount = parseFloat(amount);
+
+    // If transfer is P2P and amount reaches OTP Threshold -> Trigger OTP Step-Up Authentication
+    if (transferMode === 'WALLET' && numAmount >= otpThreshold) {
+      setShowPinModal(false);
+      setPendingPin(pinCode);
+      setOtpError('');
+      setShowOtpModal(true);
+      setOtpLoading(true);
+
+      try {
+        const res = await transactionApi.sendTransferOtp({
+          recipient,
+          amount: numAmount,
+        });
+        const result = res?.result || res?.data;
+        if (result && result.maskedEmail) {
+          setOtpMaskedEmail(result.maskedEmail);
+        } else if (user?.email) {
+          const parts = user.email.split('@');
+          const masked = parts[0].slice(0, 3) + '***@' + parts[1];
+          setOtpMaskedEmail(masked);
+        }
+      } catch (err) {
+        console.warn('Failed to send OTP email:', err);
+        setOtpError(err.response?.data?.message || 'Không thể gửi mã OTP. Vui lòng kiểm tra lại.');
+      } finally {
+        setOtpLoading(false);
+      }
+      return;
+    }
+
+    // Normal transfer (< OTP_THRESHOLD)
     try {
       setLoading(true);
 
@@ -257,6 +307,56 @@ export default function TransferPage() {
     }
   };
 
+  // Confirm High-Value Transfer with OTP
+  const handleConfirmOtp = async (otpCode) => {
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const tx = await executeTransfer({
+        recipientEmailOrPhone: recipient,
+        amount,
+        pin: pendingPin,
+        otp: otpCode,
+        idempotencyKey,
+        description: description || `Chuyển tiền cho ${recipientName || recipient}`,
+      });
+
+      setShowOtpModal(false);
+      setSuccessTx({
+        type: 'WALLET',
+        amount: parseFloat(amount),
+        recipientTitle: recipientName ? `${recipientName} (${recipient})` : recipient,
+        description: description || `Chuyển tiền ví cho ${recipientName || recipient}`,
+        transactionCode: tx?.transactionCode || idempotencyKey.toUpperCase(),
+        traceId: tx?.traceId || `trace-${Date.now()}`,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (err) {
+      console.error('Transfer with OTP failed:', err);
+      const msg = err.response?.data?.message || err.message || 'Mã OTP không chính xác hoặc đã hết hạn!';
+      setOtpError(msg);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Resend OTP for High-Value Transfer
+  const handleResendOtp = async () => {
+    setOtpError('');
+    try {
+      const res = await transactionApi.sendTransferOtp({
+        recipient,
+        amount: parseFloat(amount),
+      });
+      const result = res?.result || res?.data;
+      if (result && result.maskedEmail) {
+        setOtpMaskedEmail(result.maskedEmail);
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại.');
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
 
@@ -288,7 +388,7 @@ export default function TransferPage() {
           }`}
         >
           <Send className="w-4 h-4" />
-          <span>Đến Ví MiniWallet</span>
+          <span>Đến Ví NovaPay</span>
         </button>
 
         <button
@@ -329,7 +429,7 @@ export default function TransferPage() {
             <div className="flex justify-between items-center pb-2 border-b border-slate-700/20">
               <span className="text-[var(--text-secondary)]">Hình thức:</span>
               <span className="font-bold text-indigo-400">
-                {successTx.type === 'WALLET' ? 'Ví MiniWallet (P2P)' : 'Chuyển Khoản Ngân Hàng (NAPAS 24/7)'}
+                {successTx.type === 'WALLET' ? 'Ví NovaPay (P2P)' : 'Chuyển Khoản Ngân Hàng (NAPAS 24/7)'}
               </span>
             </div>
 
@@ -682,6 +782,18 @@ export default function TransferPage() {
       <PinRequiredModal
         isOpen={showPinRequiredModal}
         onClose={() => setShowPinRequiredModal(false)}
+      />
+
+      {/* Step-Up OTP Verification Modal for Transfers >= OTP_THRESHOLD with 120s Countdown */}
+      <OtpVerificationModal
+        isOpen={showOtpModal}
+        onClose={() => setShowOtpModal(false)}
+        onConfirm={handleConfirmOtp}
+        onResend={handleResendOtp}
+        maskedEmail={otpMaskedEmail}
+        amount={parseFloat(amount || 0)}
+        isLoading={otpLoading}
+        errorMessage={otpError}
       />
 
     </div>

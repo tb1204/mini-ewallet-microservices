@@ -55,7 +55,7 @@ export default function WithdrawPage() {
   const [loading, setLoading] = useState(false);
   const [successTx, setSuccessTx] = useState(null);
 
-  const fee = 0; // Miễn phí rút tiền về ngân hàng liên kết
+  const fee = 5000; // Phí rút tiền về ngân hàng liên kết: 5.000 VNĐ / giao dịch
   const ownerName = user?.fullName ? user.fullName.toUpperCase() : 'TRAN CONG BANG';
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export default function WithdrawPage() {
       if (Array.isArray(list)) {
         setLinkedBanks(list);
         if (list.length > 0) {
-          const defaultBank = list.find((b) => b.isDefault) || list[0];
+          const defaultBank = list.find((b) => b.isDefault === 1 || b.isDefault === true || b.default === 1 || b.default === true) || list[0];
           setSelectedBankId(defaultBank.id);
         } else {
           setSelectedBankId(null);
@@ -137,7 +137,7 @@ export default function WithdrawPage() {
 
     const totalDeduction = num + fee;
     if (totalDeduction > balance) {
-      setError(`Số dư không đủ! Cần có ít nhất ${totalDeduction.toLocaleString('vi-VN')} VNĐ trong ví.`);
+      setError(`Số dư không đủ! Cần có ít nhất ${totalDeduction.toLocaleString('vi-VN')} VNĐ trong ví (bao gồm ${fee.toLocaleString('vi-VN')} VNĐ phí rút tiền).`);
       return;
     }
 
@@ -172,6 +172,7 @@ export default function WithdrawPage() {
         accountNumber: selectedBank.accountNumber,
         accountName: ownerName,
         amount,
+        fee,
         pin: pinCode,
         idempotencyKey
       });
@@ -358,7 +359,7 @@ export default function WithdrawPage() {
                 <div>
                   <h4 className="text-sm font-bold">Bạn chưa liên kết tài khoản ngân hàng nào</h4>
                   <p className="text-xs text-[var(--text-secondary)] max-w-sm mx-auto mt-1">
-                    Theo quy định, bạn cần liên kết tài khoản ngân hàng chính chủ để thực hiện rút tiền từ ví MiniWallet.
+                    Theo quy định, bạn cần liên kết tài khoản ngân hàng chính chủ để thực hiện rút tiền từ ví NovaPay.
                   </p>
                 </div>
                 <button
@@ -407,7 +408,7 @@ export default function WithdrawPage() {
                       <div className="mt-1 flex items-center justify-between text-[11px] text-[var(--text-secondary)]">
                         <span className="truncate uppercase font-medium">{bank.accountHolderName || ownerName}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--card-bg)] border border-[var(--border-subtle)]">
-                          {bank.isDefault ? 'Mặc định' : 'Chính chủ'}
+                          {(bank.isDefault === 1 || bank.isDefault === true || bank.default === 1 || bank.default === true) ? 'Mặc định' : 'Chính chủ'}
                         </span>
                       </div>
                     </div>
@@ -480,13 +481,13 @@ export default function WithdrawPage() {
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[var(--text-secondary)]">
-                  <span>Phí dịch vụ:</span>
-                  <span className="font-semibold text-emerald-600">Miễn phí (0 VNĐ)</span>
+                  <span>Phí dịch vụ rút tiền:</span>
+                  <span className="font-semibold text-purple-600 dark:text-purple-400 font-mono">5.000 VNĐ</span>
                 </div>
                 <div className="pt-2 border-t border-[var(--border-subtle)] flex justify-between items-center text-sm font-bold">
                   <span>Tổng tiền trừ khỏi ví:</span>
                   <span className="text-purple-600 dark:text-purple-400 font-mono">
-                    {amount && !isNaN(parseFloat(amount)) ? parseFloat(amount).toLocaleString('vi-VN') : 0} VNĐ
+                    {amount && !isNaN(parseFloat(amount)) ? (parseFloat(amount) + fee).toLocaleString('vi-VN') : 0} VNĐ
                   </span>
                 </div>
               </div>
@@ -521,7 +522,7 @@ export default function WithdrawPage() {
               Xác Nhận Rút Tiền
             </h3>
             <p className="text-xs text-[var(--text-secondary)] mb-4">
-              Nhập mã PIN 6 số để rút <strong className="text-purple-600">{parseFloat(amount).toLocaleString('vi-VN')} VNĐ</strong> về tài khoản <strong>{selectedBank?.bankName} ({selectedBank?.accountNumber})</strong>
+              Nhập mã PIN 6 số để rút <strong className="text-purple-600">{parseFloat(amount).toLocaleString('vi-VN')} VNĐ</strong> về tài khoản <strong>{selectedBank?.bankName} ({selectedBank?.accountNumber})</strong> (Phí dịch vụ: 5.000 VNĐ)
             </p>
 
             {error && (

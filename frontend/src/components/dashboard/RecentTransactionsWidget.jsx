@@ -5,7 +5,7 @@ import { History, ArrowDownLeft, ArrowUpRight, Send, CheckCircle2, ChevronRight 
 
 export default function RecentTransactionsWidget() {
   const { transactions } = useWalletStore();
-  const recentList = transactions.slice(0, 4);
+  const recentList = Array.isArray(transactions) ? transactions.slice(0, 5) : [];
 
   const formatMoney = (val) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);

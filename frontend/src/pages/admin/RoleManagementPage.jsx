@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, Search, CheckCircle2, UserCheck, Shield, Users, Loader2, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Search, CheckCircle2, Shield, Users, Loader2, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../../store/useAuthStore';
 
 /**
  * Role Management & Access Control Page (identity_db)
- * Assign and fast switch authorization roles among ROLE_USER, ROLE_STAFF, and ROLE_ADMIN.
+ * Assign and fast switch authorization roles between ROLE_USER and ROLE_ADMIN.
  */
 export default function RoleManagementPage() {
   const { registeredUsers, fetchAllUsers, updateUserRole, user: currentUser } = useAuthStore();
@@ -71,7 +71,7 @@ export default function RoleManagementPage() {
             Phân Quyền Vai Trò (Microservice Identity DB)
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Gán và chuyển đổi nhanh cấp độ truy cập hệ thống giữa `ROLE_USER`, `ROLE_STAFF` và `ROLE_ADMIN`.
+            Gán và chuyển đổi nhanh cấp độ truy cập hệ thống giữa `ROLE_USER` và `ROLE_ADMIN`.
           </p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function RoleManagementPage() {
       )}
 
       {/* Quick Role Legend Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="clean-card p-4 rounded-2xl border border-[var(--border-main)] flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center font-bold">
             <Shield className="w-5 h-5" />
@@ -101,16 +101,6 @@ export default function RoleManagementPage() {
           <div>
             <div className="font-bold text-xs text-purple-400">QUẢN TRỊ (ADMIN)</div>
             <div className="text-[11px] text-[var(--text-secondary)]">Toàn quyền quản trị hệ thống ví</div>
-          </div>
-        </div>
-
-        <div className="clean-card p-4 rounded-2xl border border-[var(--border-main)] flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center font-bold">
-            <UserCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-bold text-xs text-indigo-400">NHÂN VIÊN (STAFF)</div>
-            <div className="text-[11px] text-[var(--text-secondary)]">Nhân viên vận hành & CSKH</div>
           </div>
         </div>
 
@@ -192,12 +182,10 @@ export default function RoleManagementPage() {
                           className={`px-3 py-1 rounded-lg text-[10px] font-mono font-bold uppercase ${
                             u.role === 'ROLE_ADMIN'
                               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
-                              : u.role === 'ROLE_STAFF'
-                              ? 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30'
                               : 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
                           }`}
                         >
-                          {u.role === 'ROLE_ADMIN' ? '👑 ADMIN' : u.role === 'ROLE_STAFF' ? '👔 STAFF' : '👤 USER'}
+                          {u.role === 'ROLE_ADMIN' ? '👑 ADMIN' : '👤 USER'}
                         </span>
                       </td>
 
@@ -220,22 +208,10 @@ export default function RoleManagementPage() {
 
                             <button
                               disabled={isUpdating}
-                              onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_STAFF')}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer disabled:opacity-50 ${
-                                u.role === 'ROLE_STAFF'
-                                  ? 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40 font-bold'
-                                  : 'clean-card-subtle text-[var(--text-secondary)] hover:text-indigo-400'
-                              }`}
-                            >
-                              STAFF
-                            </button>
-
-                            <button
-                              disabled={isUpdating}
                               onClick={() => handleRoleChange(u.id, u.fullName, 'ROLE_ADMIN')}
                               className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition cursor-pointer disabled:opacity-50 ${
                                 u.role === 'ROLE_ADMIN'
-                                  ? 'bg-purple-500/20 text-purple-400 border-purple-500/40 font-bold'
+                                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 font-bold'
                                   : 'clean-card-subtle text-[var(--text-secondary)] hover:text-purple-400'
                               }`}
                             >

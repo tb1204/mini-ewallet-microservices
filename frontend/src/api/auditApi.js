@@ -8,7 +8,7 @@ const CONFIG_SERVICE_URL = '/v1/configs';
  */
 export const auditApi = {
   /**
-   * Admin/Staff Query: Retrieve paginated audit logs with search keyword and sorting
+   * Admin Query: Retrieve paginated audit logs with search keyword and sorting
    * @param {Object} params - { keyword, page, size, sort }
    */
   getAuditLogs: async (params = {}) => {
@@ -16,7 +16,7 @@ export const auditApi = {
   },
 
   /**
-   * Admin/Staff Query: Retrieve specific audit log detail by UUID
+   * Admin Query: Retrieve specific audit log detail by UUID
    * @param {string} id
    */
   getAuditLogById: async (id) => {

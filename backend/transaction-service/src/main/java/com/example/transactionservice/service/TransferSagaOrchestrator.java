@@ -2,9 +2,11 @@ package com.example.transactionservice.service;
 
 import com.example.transactionservice.client.IdentityClient;
 import com.example.transactionservice.client.WalletClient;
+import com.example.transactionservice.config.RabbitMQConfig;
 import com.example.transactionservice.constants.ErrorCode;
 import com.example.transactionservice.constants.TransactionStatus;
 import com.example.transactionservice.constants.TransactionType;
+import com.example.transactionservice.dto.event.TransactionNotificationEvent;
 import com.example.transactionservice.dto.request.BalanceOperationRequest;
 import com.example.transactionservice.dto.request.CreateTransferRequest;
 import com.example.transactionservice.dto.response.ApiResponse;
@@ -15,6 +17,7 @@ import com.example.transactionservice.exception.AppException;
 import com.example.transactionservice.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -28,6 +31,7 @@ public class TransferSagaOrchestrator {
     private final IdentityClient identityClient;
     private final WalletClient walletClient;
     private final TransactionRepository transactionRepository;
+    private final RabbitTemplate rabbitTemplate;
 
     /**
      * Execute P2P Transfer using 2-step Saga Pattern with Compensating Action.
@@ -119,7 +123,46 @@ public class TransferSagaOrchestrator {
             if (depositRes != null && depositRes.getCode() == 1000) {
                 log.info("Saga Step 2 Success: Deposited {} to receiver {}", request.getAmount(), receiverUserId);
                 savedTx.setStatus(TransactionStatus.SUCCESS);
-                return transactionRepository.save(savedTx);
+                Transaction completedTx = transactionRepository.save(savedTx);
+
+                // Publish real-time notifications to RabbitMQ for Sender and Receiver
+                try {
+                    String receiverDisplayName = receiverUser.getFullName() != null && !receiverUser.getFullName().isBlank()
+                            ? receiverUser.getFullName()
+                            : receiverUser.getUsername();
+
+                    // Sender Notification
+                    TransactionNotificationEvent senderEvent = TransactionNotificationEvent.builder()
+                            .userId(senderUserId)
+                            .title("Chuyển tiền thành công")
+                            .detail(String.format("Bạn đã chuyển %,d VNĐ đến %s. Mã GD: %s",
+                                    request.getAmount().longValue(),
+                                    receiverDisplayName,
+                                    completedTx.getTransactionCode()))
+                            .type("TRANSFER")
+                            .amount(request.getAmount())
+                            .transactionId(completedTx.getTransactionCode())
+                            .build();
+                    rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.TRANSACTION_ROUTING_KEY, senderEvent);
+
+                    // Receiver Notification
+                    TransactionNotificationEvent receiverEvent = TransactionNotificationEvent.builder()
+                            .userId(receiverUserId)
+                            .title("Nhận tiền thành công")
+                            .detail(String.format("Bạn vừa nhận %,d VNĐ vào tài khoản ví. Mã GD: %s",
+                                    request.getAmount().longValue(),
+                                    completedTx.getTransactionCode()))
+                            .type("RECEIVE")
+                            .amount(request.getAmount())
+                            .transactionId(completedTx.getTransactionCode())
+                            .build();
+                    rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.TRANSACTION_ROUTING_KEY, receiverEvent);
+                    log.info("Published transfer notifications to RabbitMQ for sender {} and receiver {}", senderUserId, receiverUserId);
+                } catch (Exception notifEx) {
+                    log.warn("Failed to publish transfer notification to RabbitMQ: {}", notifEx.getMessage());
+                }
+
+                return completedTx;
             } else {
                 throw new Exception("Deposit response returned non-1000 code");
             }

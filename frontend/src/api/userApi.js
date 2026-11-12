@@ -41,6 +41,27 @@ export const userApi = {
   },
 
   /**
+   * Upload user avatar file to Cloudinary via backend identity-service
+   * @param {File} file
+   */
+  uploadAvatar: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return await axiosClient.post(`${USER_SERVICE_URL}/avatar`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  },
+
+  /**
+   * Remove current user avatar
+   */
+  removeAvatar: async () => {
+    return await axiosClient.delete(`${USER_SERVICE_URL}/avatar`);
+  },
+
+  /**
    * Change current user's login password
    * @param {Object} data - { oldPassword, newPassword }
    */
@@ -70,7 +91,7 @@ export const userApi = {
   /**
    * Admin Action: Update user authorization role
    * @param {string} id - Target user UUID
-   * @param {string} role - ROLE_USER | ROLE_STAFF | ROLE_ADMIN
+   * @param {string} role - ROLE_USER | ROLE_ADMIN
    */
   updateUserRole: async (id, role) => {
     return await axiosClient.put(`${USER_SERVICE_URL}/${id}/role`, null, {

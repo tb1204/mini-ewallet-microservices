@@ -67,13 +67,13 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Header Logo */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center mx-auto mb-3 text-white">
-            <Wallet className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 p-1 mx-auto mb-3 shadow-lg shadow-emerald-500/20">
+            <img src="/favicon.svg" alt="NovaPay Logo" className="w-full h-full rounded-[12px]" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Đăng Ký Ví Điện Tử
+          <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">
+            Đăng Ký <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">NovaPay</span>
           </h1>
-          <p className="text-slate-400 text-xs mt-1">
+          <p className="text-[var(--text-secondary)] text-xs mt-1">
             Khởi tạo ví số an toàn & trải nghiệm dịch vụ tài chính hiện đại
           </p>
         </div>
