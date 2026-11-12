@@ -32,7 +32,6 @@ public class RegisterRequest {
     @NotBlank(message = "Họ và tên không được để trống")
     private String fullName;
 
-    @NotBlank(message = "Mã PIN không được để trống")
     @Pattern(regexp = "^[0-9]{6}$", message = "Mã PIN phải bao gồm 6 chữ số")
     private String pin;
 

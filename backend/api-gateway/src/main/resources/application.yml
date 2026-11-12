@@ -7,35 +7,80 @@ spring:
 
   cloud:
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
-      routes:
-        - id: identity-service
-          uri: lb://IDENTITY-SERVICE
-          predicates:
-            - Path=/api/v1/auth/**, /api/v1/users/**
+      server:
+        webmvc:
+          routes:
+            - id: identity-service-auth
+              uri: lb://IDENTITY-SERVICE
+              predicates:
+                - Path=/api/v1/auth/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
 
-        - id: wallet-service
-          uri: lb://WALLET-SERVICE
-          predicates:
-            - Path=/api/v1/wallets/**, /api/v1/savings/**
+            - id: identity-service-users
+              uri: lb://IDENTITY-SERVICE
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
 
-        - id: transaction-service
-          uri: lb://TRANSACTION-SERVICE
-          predicates:
-            - Path=/api/v1/transactions/**, /api/v1/utilities/**
+            - id: wallet-service-wallets
+              uri: lb://WALLET-SERVICE
+              predicates:
+                - Path=/api/v1/wallets/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
 
-        - id: audit-service
-          uri: lb://AUDIT-SERVICE
-          predicates:
-            - Path=/api/v1/audit/**, /api/v1/configs/**
+            - id: wallet-service-savings
+              uri: lb://WALLET-SERVICE
+              predicates:
+                - Path=/api/v1/savings/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
+
+            - id: transaction-service-tx
+              uri: lb://TRANSACTION-SERVICE
+              predicates:
+                - Path=/api/v1/transactions/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
+
+            - id: transaction-service-util
+              uri: lb://TRANSACTION-SERVICE
+              predicates:
+                - Path=/api/v1/utilities/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
+
+            - id: audit-service-audit
+              uri: lb://AUDIT-SERVICE
+              predicates:
+                - Path=/api/v1/audit/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
+
+            - id: audit-service-configs
+              uri: lb://AUDIT-SERVICE
+              predicates:
+                - Path=/api/v1/configs/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
+
+            - id: notification-service-api
+              uri: lb://NOTIFICATION-SERVICE
+              predicates:
+                - Path=/api/v1/notifications/**
+              filters:
+                - AddRequestHeader=X-Gateway-Token, ewallet-gateway-key-2026
 
 eureka:
   client:
-    enabled: false
+    enabled: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
     prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway.server.mvc: DEBUG

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useWalletStore } from '../../store/useWalletStore';
 import { Link } from 'react-router-dom';
@@ -7,10 +7,16 @@ import BannerCarousel from '../../components/dashboard/BannerCarousel';
 import QuickUtilitiesGrid from '../../components/dashboard/QuickUtilitiesGrid';
 import RecentTransactionsWidget from '../../components/dashboard/RecentTransactionsWidget';
 import SpendingStatsWidget from '../../components/dashboard/SpendingStatsWidget';
+import PinRequiredModal from '../../components/modals/PinRequiredModal';
 
 export default function UserDashboardPage() {
   const { user, verifyPin } = useAuthStore();
-  const { balance, status: walletStatus, version } = useWalletStore();
+  const { balance, status: walletStatus, version, fetchMyWallet, fetchTransactions } = useWalletStore();
+
+  useEffect(() => {
+    fetchMyWallet();
+    fetchTransactions();
+  }, []);
 
   // Balance unlock state (requires PIN on first reveal after login)
   const [isBalanceUnlocked, setIsBalanceUnlocked] = useState(false);
@@ -18,6 +24,7 @@ export default function UserDashboardPage() {
 
   // PIN modal for balance reveal
   const [showBalancePinModal, setShowBalancePinModal] = useState(false);
+  const [showPinRequiredModal, setShowPinRequiredModal] = useState(false);
   const [pinCode, setPinCode] = useState('');
   const [pinError, setPinError] = useState('');
 
@@ -29,7 +36,7 @@ export default function UserDashboardPage() {
   const handleToggleBalanceClick = () => {
     if (!isBalanceUnlocked) {
       if (!user?.hasPin) {
-        alert('Bạn cần cài đặt Mã PIN 6 số trước khi xem số dư!');
+        setShowPinRequiredModal(true);
         return;
       }
       setPinError('');
@@ -62,7 +69,7 @@ export default function UserDashboardPage() {
       <div className="clean-card p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Xin chào, {user?.fullName}! 👋
+            Xin chào, {user?.fullName}! 
           </h1>
         </div>
 
@@ -201,6 +208,12 @@ export default function UserDashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Modal Prompt to Setup PIN */}
+      <PinRequiredModal
+        isOpen={showPinRequiredModal}
+        onClose={() => setShowPinRequiredModal(false)}
+      />
 
     </div>
   );

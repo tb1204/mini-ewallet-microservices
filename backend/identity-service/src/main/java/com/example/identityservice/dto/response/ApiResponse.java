@@ -27,6 +27,11 @@ public class ApiResponse<T> {
     @Builder.Default
     private Instant timestamp = Instant.now();
 
+    /** Compatibility getter for result */
+    public T getResult() {
+        return data;
+    }
+
     /** Build successful response with data. */
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()

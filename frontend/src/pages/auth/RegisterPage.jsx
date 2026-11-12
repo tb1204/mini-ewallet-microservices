@@ -39,9 +39,13 @@ export default function RegisterPage() {
 
     try {
       setLoading(true);
-      // Mặc định luôn đăng ký với vai trò ROLE_USER
-      await register({ fullName, email, phoneNumber, password });
-      navigate('/security'); // Chuyển đến trang cài đặt PIN cho tài khoản mới
+      // Register with ROLE_USER (transaction PIN will be set up later by user)
+      const user = await register({ fullName, email, phoneNumber, password });
+      if (user?.role === 'ROLE_ADMIN') {
+        navigate('/admin/dashboard');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Đăng ký thất bại!');
     } finally {
@@ -61,30 +65,28 @@ export default function RegisterPage() {
       </button>
 
       <div className="w-full max-w-md">
-        
-        {/* Header */}
+        {/* Header Logo */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center mx-auto mb-3 text-white">
-            <Wallet className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 p-1 mx-auto mb-3 shadow-lg shadow-emerald-500/20">
+            <img src="/favicon.svg" alt="NovaPay Logo" className="w-full h-full rounded-[12px]" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Đăng Ký Tài Khoản Ví
+          <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">
+            Đăng Ký <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">NovaPay</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Mặc định khởi tạo tài khoản người dùng (`ROLE_USER`)
+          <p className="text-[var(--text-secondary)] text-xs mt-1">
+            Khởi tạo ví số an toàn & trải nghiệm dịch vụ tài chính hiện đại
           </p>
         </div>
 
-        {/* Register Card */}
-        <div className="clean-card p-6 sm:p-8 shadow-lg">
+        {/* Card Form */}
+        <div className="clean-card rounded-2xl p-6 sm:p-8 shadow-xl">
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
-              ⚠️ {error}
+            <div className="mb-5 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs text-center font-medium">
+              {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
             {/* Full Name */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -109,7 +111,7 @@ export default function RegisterPage() {
             {/* Email */}
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Email
+                Địa Chỉ Email
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
@@ -202,7 +204,7 @@ export default function RegisterPage() {
               id="btn-register-submit"
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer"
             >
               {loading ? (
                 <span>Đang xử lý...</span>

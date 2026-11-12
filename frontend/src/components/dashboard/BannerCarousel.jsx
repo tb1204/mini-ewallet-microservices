@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Zap, ShieldCheck, QrCode, PiggyBank } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SavingsModal from '../modals/utilities/SavingsModal';
 
 const slides = [
   {
@@ -45,12 +46,13 @@ const slides = [
     color: 'from-amber-600/20 via-amber-600/10 to-transparent',
     borderColor: 'border-amber-500/30',
     btnText: 'Khám Phá Ngay',
-    link: '#'
+    action: 'savings'
   }
 ];
 
-export default function BannerCarousel() {
+export default function BannerCarousel({ onOpenSavings }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [showSavingsModal, setShowSavingsModal] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -65,6 +67,14 @@ export default function BannerCarousel() {
 
   const handleNext = () => {
     setCurrentIndex((prev) => (prev + 1) % slides.length);
+  };
+
+  const handleOpenSavings = () => {
+    if (onOpenSavings) {
+      onOpenSavings();
+    } else {
+      setShowSavingsModal(true);
+    }
   };
 
   const currentSlide = slides[currentIndex];
@@ -86,12 +96,22 @@ export default function BannerCarousel() {
           </p>
 
           <div className="pt-2">
-            <Link
-              to={currentSlide.link}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
-            >
-              {currentSlide.btnText} →
-            </Link>
+            {currentSlide.action === 'savings' ? (
+              <button
+                type="button"
+                onClick={handleOpenSavings}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+              >
+                {currentSlide.btnText} →
+              </button>
+            ) : (
+              <Link
+                to={currentSlide.link}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition cursor-pointer"
+              >
+                {currentSlide.btnText} →
+              </Link>
+            )}
           </div>
         </div>
 
@@ -135,6 +155,9 @@ export default function BannerCarousel() {
         </div>
 
       </div>
+
+      {/* Render Savings Modal when triggered from banner */}
+      {showSavingsModal && <SavingsModal onClose={() => setShowSavingsModal(false)} />}
     </div>
   );
 }

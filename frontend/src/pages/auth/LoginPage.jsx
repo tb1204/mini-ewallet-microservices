@@ -54,19 +54,16 @@ export default function LoginPage() {
         
         {/* Header Logo */}
         <div className="text-center mb-6">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center mx-auto mb-3 text-white">
-            <Wallet className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 p-1 mx-auto mb-3 shadow-lg shadow-emerald-500/20">
+            <img src="/favicon.svg" alt="NovaPay Logo" className="w-full h-full rounded-[12px]" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">
-            Đăng Nhập Ví Điện Tử
+          <h1 className="text-2xl font-black text-[var(--text-primary)] tracking-tight">
+            Đăng Nhập <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">NovaPay</span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Hệ thống E-Wallet Microservices
-          </p>
         </div>
 
         {/* Login Card */}
-        <div className="clean-card p-6 sm:p-8 shadow-lg">
+        <div className="clean-card p-6 sm:p-8 shadow-lg rounded-2xl border border-[var(--border-main)]">
           {error && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs">
               ⚠️ {error}
@@ -77,7 +74,7 @@ export default function LoginPage() {
             
             {/* Email / Phone Field */}
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                 Email hoặc Số Điện Thoại
               </label>
               <div className="relative">
@@ -98,7 +95,7 @@ export default function LoginPage() {
 
             {/* Password Field */}
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
                 Mật Khẩu
               </label>
               <div className="relative">
@@ -129,7 +126,7 @@ export default function LoginPage() {
               id="btn-login-submit"
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-lg text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center gap-2 disabled:opacity-50 mt-2 cursor-pointer shadow-md"
             >
               {loading ? (
                 <span>Đang xử lý...</span>
@@ -142,9 +139,9 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-5 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
+          <div className="mt-5 pt-4 border-t border-[var(--border-main)] text-center text-xs text-[var(--text-secondary)]">
             Chưa có tài khoản?{' '}
-            <Link to="/register" className="text-emerald-400 hover:underline font-medium">
+            <Link to="/register" className="text-emerald-500 hover:underline font-medium">
               Đăng ký ngay
             </Link>
           </div>

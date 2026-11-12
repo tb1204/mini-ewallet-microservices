@@ -1,20 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ArrowLeftRight, Search, Eye, CreditCard, X,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight 
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, AlertCircle 
 } from 'lucide-react';
-import { useWalletStore } from '../../store/useWalletStore';
+import { transactionApi, walletApi } from '../../api';
+import { useAuthStore } from '../../store/useAuthStore';
 
 /**
  * SYSTEM TRANSACTIONS PAGE (SystemTransactionsPage)
- * - Displays system-wide ledger history (Top-up, Withdraw, P2P Transfer)
- * - 7-Column Table Layout: Transaction ID, From Source, To Account, Amount, Status, Time, Actions
+ * - Displays system-wide ledger history (Top-up, Withdraw, P2P Transfer, Utilities)
+ * - Connected directly to transaction-service /api/v1/transactions/admin
  * - Integrated Search & Status Filter (SUCCESS / PENDING / FAILED)
- * - Tri-state sorting mechanism (Default sort by newest timestamp)
- * - Flexible client-side pagination (5, 10, 20 rows per page) & Idempotency Key detail view
+ * - Human-friendly Sender/Receiver resolution with Wallet owner mapping
+ * - Clear Vietnamese transaction type badges (Nạp tiền, Chuyển tiền, Rút tiền, Tiện ích, Bảo hiểm)
  */
 export default function SystemTransactionsPage() {
-  const { transactions } = useWalletStore();
+  const { registeredUsers, fetchAllUsers } = useAuthStore();
+  const [systemTransactions, setSystemTransactions] = useState([]);
+  const [wallets, setWallets] = useState([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
@@ -29,7 +35,163 @@ export default function SystemTransactionsPage() {
   // Modals
   const [selectedTx, setSelectedTx] = useState(null);
 
-  const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(num) + ' VNĐ';
+  const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' VNĐ';
+
+  // Fetch all system transactions and wallets/users on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAllData = async () => {
+      setIsFetching(true);
+      setErrorMessage('');
+      try {
+        const [txRes, walletRes] = await Promise.all([
+          transactionApi.getAllSystemTransactions({ size: 100 }),
+          walletApi.getAllWallets({ size: 200 }),
+          registeredUsers.length === 0 ? fetchAllUsers() : Promise.resolve(),
+        ]);
+        const list = txRes?.result || txRes?.data || txRes;
+        const rawWallets = walletRes?.result || walletRes?.data || walletRes;
+        if (isMounted) {
+          setSystemTransactions(Array.isArray(list) ? list : []);
+          setWallets(Array.isArray(rawWallets) ? rawWallets : []);
+        }
+      } catch (err) {
+        console.error('Failed to load system transactions:', err);
+        if (isMounted) {
+          setErrorMessage('Không thể tải nhật ký giao dịch hệ thống từ transaction-service.');
+        }
+      } finally {
+        if (isMounted) setIsFetching(false);
+      }
+    };
+
+    fetchAllData();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAllUsers, registeredUsers.length]);
+
+  // Wallet and User mapping for human-readable names
+  const walletMap = useMemo(() => {
+    const map = new Map();
+    const userMap = new Map();
+    registeredUsers.forEach((u) => userMap.set(u.id, u));
+
+    wallets.forEach((w) => {
+      const owner = userMap.get(w.userId);
+      map.set(w.id, {
+        ...w,
+        ownerName: owner?.fullName || w.ownerName || 'Tài khoản người dùng',
+        ownerEmail: owner?.email || w.ownerEmail || '',
+      });
+    });
+    return map;
+  }, [wallets, registeredUsers]);
+
+  const getSenderInfo = (t) => {
+    const sType = t.serviceType || t.type;
+    if (sType === 'TOPUP') {
+      return {
+        name: 'Ngân hàng liên kết',
+        subtext: 'Nạp tiền vào ví',
+        isBank: true,
+      };
+    }
+    if (t.senderWalletId) {
+      const w = walletMap.get(t.senderWalletId);
+      return {
+        name: w?.ownerName || 'Ví e-Wallet',
+        subtext: t.senderWalletId,
+        isBank: false,
+      };
+    }
+    return {
+      name: 'Hệ thống NovaPay',
+      subtext: '',
+      isBank: false,
+    };
+  };
+
+  const getReceiverInfo = (t) => {
+    const sType = t.serviceType || t.type;
+    if (sType === 'WITHDRAW') {
+      return {
+        name: 'Tài khoản ngân hàng',
+        subtext: 'Rút tiền về bank',
+        isBank: true,
+      };
+    }
+    if (t.receiverWalletId) {
+      const w = walletMap.get(t.receiverWalletId);
+      return {
+        name: w?.ownerName || 'Ví e-Wallet',
+        subtext: t.receiverWalletId,
+        isBank: false,
+      };
+    }
+    if (sType?.startsWith('UTILITY') || sType === 'INSURANCE') {
+      const desc = t.description || '';
+      if (desc.includes('EVN') || desc.includes('điện')) {
+        return { name: 'Điện lực EVN', subtext: 'Dịch vụ tiền điện', isBank: false };
+      }
+      if (desc.includes('Viettel') || desc.includes('4G') || desc.includes('ĐTDĐ')) {
+        return { name: 'Viettel Telecom', subtext: 'Cước Viễn thông / Data', isBank: false };
+      }
+      if (desc.includes('Bảo Vệ') || desc.includes('Bảo hiểm')) {
+        return { name: 'Bảo hiểm PTI', subtext: 'Bảo hiểm ví điện tử', isBank: false };
+      }
+      return { name: 'Dịch vụ Tiện ích', subtext: 'Hóa đơn dịch vụ', isBank: false };
+    }
+    return {
+      name: 'Ví e-Wallet',
+      subtext: '',
+      isBank: false,
+    };
+  };
+
+  const getServiceTypeBadge = (sType) => {
+    const type = sType || '';
+    if (type === 'TOPUP') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+          Nạp tiền
+        </span>
+      );
+    }
+    if (type === 'WITHDRAW') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap">
+          Rút tiền
+        </span>
+      );
+    }
+    if (type === 'TRANSFER') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20 whitespace-nowrap">
+          Chuyển tiền
+        </span>
+      );
+    }
+    if (type.startsWith('UTILITY')) {
+      return (
+        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20 whitespace-nowrap">
+          Tiện ích
+        </span>
+      );
+    }
+    if (type === 'INSURANCE') {
+      return (
+        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-500/20 whitespace-nowrap">
+          Bảo hiểm
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 whitespace-nowrap">
+        {type || 'Giao dịch'}
+      </span>
+    );
+  };
 
   // 3-State Sort Handler: (none/default) -> asc -> desc -> (default)
   const handleSort = (field) => {
@@ -39,7 +201,6 @@ export default function SystemTransactionsPage() {
     } else if (sortOrder === 'asc') {
       setSortOrder('desc');
     } else {
-      // Third click resets back to default (createdAt desc)
       setSortField(null);
       setSortOrder('asc');
     }
@@ -48,21 +209,21 @@ export default function SystemTransactionsPage() {
 
   // 1. Filtered Data
   const filteredTxs = useMemo(() => {
-    return transactions.filter((t) => {
+    return systemTransactions.filter((t) => {
       const matchesStatus = statusFilter === 'ALL' || t.status === statusFilter;
       const matchesSearch =
-        t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (t.senderName && t.senderName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.recipientName && t.recipientName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase()));
+        (t.id && t.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.senderWalletId && t.senderWalletId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.receiverWalletId && t.receiverWalletId.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.description && t.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (t.type && t.type.toLowerCase().includes(searchTerm.toLowerCase()));
 
       return matchesStatus && matchesSearch;
     });
-  }, [transactions, searchTerm, statusFilter]);
+  }, [systemTransactions, searchTerm, statusFilter]);
 
   // 2. Sorted Data
   const sortedTxs = useMemo(() => {
-    // Default sorting when sortField is null: Sort by createdAt desc (Newest first)
     if (!sortField) {
       return [...filteredTxs].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -122,6 +283,14 @@ export default function SystemTransactionsPage() {
         </h1>
       </div>
 
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="clean-card p-3 bg-red-500/10 border-red-500/30 text-red-600 text-xs flex items-center gap-2 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          {errorMessage}
+        </div>
+      )}
+
       {/* Main Table Card */}
       <div className="clean-card p-5 space-y-4 rounded-xl border border-[var(--border-main)]">
         
@@ -142,7 +311,7 @@ export default function SystemTransactionsPage() {
                   setSearchTerm(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Tìm theo Mã GD, Người gửi, Người nhận..."
+                placeholder="Tìm theo Mã GD, Ví gửi, Ví nhận..."
                 className="w-full clean-input pl-9 pr-3 py-1.5 text-xs"
               />
             </div>
@@ -169,6 +338,9 @@ export default function SystemTransactionsPage() {
           <table className="w-full text-left text-xs text-[var(--text-primary)]">
             <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-medium select-none">
               <tr>
+                {/* STT Header */}
+                <th className="p-3 w-12 text-center">STT</th>
+
                 {/* ID Header */}
                 <th
                   onClick={() => handleSort('id')}
@@ -180,25 +352,36 @@ export default function SystemTransactionsPage() {
                   </div>
                 </th>
 
-                {/* From Header */}
+                {/* Type Header */}
                 <th
-                  onClick={() => handleSort('senderName')}
+                  onClick={() => handleSort('serviceType')}
                   className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
                   <div className="flex items-center gap-1">
-                    <span>Từ nguồn</span>
-                    {renderSortIcon('senderName')}
+                    <span>Loại</span>
+                    {renderSortIcon('serviceType')}
                   </div>
                 </th>
 
-                {/* To Header */}
+                {/* Sender Header */}
                 <th
-                  onClick={() => handleSort('recipientName')}
+                  onClick={() => handleSort('senderWalletId')}
                   className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
                 >
                   <div className="flex items-center gap-1">
-                    <span>Đến tài khoản</span>
-                    {renderSortIcon('recipientName')}
+                    <span>Người gửi</span>
+                    {renderSortIcon('senderWalletId')}
+                  </div>
+                </th>
+
+                {/* Receiver Header */}
+                <th
+                  onClick={() => handleSort('receiverWalletId')}
+                  className="p-3 cursor-pointer hover:text-[var(--text-primary)] transition"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Người nhận</span>
+                    {renderSortIcon('receiverWalletId')}
                   </div>
                 </th>
 
@@ -239,78 +422,96 @@ export default function SystemTransactionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-main)]">
-              {paginatedTxs.length > 0 ? (
-                paginatedTxs.map((t) => (
-                  <tr key={t.id} className="hover:bg-[var(--table-hover-bg)] transition">
-                    
-                    {/* Transaction ID */}
-                    <td className="p-3 font-mono font-medium text-blue-600 dark:text-blue-400">
-                      {t.id}
-                    </td>
+              {isFetching ? (
+                <tr>
+                  <td colSpan="9" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                      <span>Đang tải nhật ký giao dịch toàn hệ thống...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedTxs.length > 0 ? (
+                paginatedTxs.map((t, index) => {
+                  const stt = (currentPage - 1) * pageSize + index + 1;
+                  const sender = getSenderInfo(t);
+                  const receiver = getReceiverInfo(t);
+                  return (
+                    <tr key={t.id} className="hover:bg-[var(--table-hover-bg)] transition">
+                      
+                      {/* STT Column */}
+                      <td className="p-3 text-center font-medium text-[var(--text-secondary)] text-[11px] w-12">
+                        {stt}
+                      </td>
 
-                    {/* From */}
-                    <td className="p-3 font-medium text-[var(--text-primary)]">
-                      {t.type === 'TOPUP' ? (
-                        <span className="text-emerald-600 flex items-center gap-1 font-mono">
-                          <CreditCard className="w-3.5 h-3.5" /> {t.bankName || 'Ngân Hàng VCB'}
+                      {/* Transaction ID */}
+                      <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 select-all" title={t.id}>
+                        {t.id}
+                      </td>
+
+                      {/* Type */}
+                      <td className="p-3">
+                        {getServiceTypeBadge(t.serviceType || t.type)}
+                      </td>
+
+                      {/* From */}
+                      <td className="p-3">
+                        <div className="font-medium text-[var(--text-primary)] flex items-center gap-1.5 whitespace-nowrap">
+                          {sender.isBank && <CreditCard className="w-3.5 h-3.5 text-emerald-600 inline shrink-0" />}
+                          <span>{sender.name}</span>
+                        </div>
+                      </td>
+
+                      {/* To */}
+                      <td className="p-3">
+                        <div className="font-medium text-[var(--text-primary)] flex items-center gap-1.5 whitespace-nowrap">
+                          {receiver.isBank && <CreditCard className="w-3.5 h-3.5 text-blue-600 inline shrink-0" />}
+                          <span>{receiver.name}</span>
+                        </div>
+                      </td>
+
+                      {/* Amount */}
+                      <td className="p-3 font-mono font-semibold text-[var(--text-primary)]">
+                        {formatVND(t.amount)}
+                      </td>
+
+                      {/* Status */}
+                      <td className="p-3">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[11px] font-medium ${
+                            t.status === 'SUCCESS'
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
+                              : t.status === 'PENDING'
+                              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
+                              : 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20'
+                          }`}
+                        >
+                          {t.status === 'SUCCESS' ? 'Thành công' : t.status === 'PENDING' ? 'Đang xử lý' : 'Thất bại'}
                         </span>
-                      ) : (
-                        t.senderName || 'Nguyễn Văn User'
-                      )}
-                    </td>
+                      </td>
 
-                    {/* To */}
-                    <td className="p-3 font-medium text-[var(--text-primary)]">
-                      {t.type === 'WITHDRAW' ? (
-                        <span className="text-blue-600 flex items-center gap-1 font-mono">
-                          <CreditCard className="w-3.5 h-3.5" /> {t.bankName || 'Ngân Hàng BIDV'}
-                        </span>
-                      ) : (
-                        t.recipientName || (t.type === 'TOPUP' ? 'Ví Cá Nhân' : 'Dịch vụ E-Wallet')
-                      )}
-                    </td>
+                      {/* Created At */}
+                      <td className="p-3 text-[var(--text-secondary)] text-[11px] whitespace-nowrap">
+                        {t.createdAt ? new Date(t.createdAt).toLocaleString('vi-VN') : 'Vừa xong'}
+                      </td>
 
-                    {/* Amount */}
-                    <td className="p-3 font-mono font-semibold text-[var(--text-primary)]">
-                      {formatVND(t.amount)}
-                    </td>
+                      {/* Actions */}
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => setSelectedTx(t)}
+                          className="px-2.5 py-1 rounded-lg clean-card-subtle text-xs font-medium hover:border-slate-400 border border-[var(--border-main)] inline-flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-500" />
+                          Xem
+                        </button>
+                      </td>
 
-                    {/* Status */}
-                    <td className="p-3">
-                      <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-medium ${
-                          t.status === 'SUCCESS'
-                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'
-                            : t.status === 'PENDING'
-                            ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
-                            : 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20'
-                        }`}
-                      >
-                        {t.status === 'SUCCESS' ? 'Thành công' : t.status === 'PENDING' ? 'Đang xử lý' : 'Thất bại'}
-                      </span>
-                    </td>
-
-                    {/* Created At */}
-                    <td className="p-3 text-[var(--text-secondary)] text-[11px] whitespace-nowrap">
-                      {new Date(t.createdAt).toLocaleString('vi-VN')}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="p-3 text-right">
-                      <button
-                        onClick={() => setSelectedTx(t)}
-                        className="px-2.5 py-1 rounded-lg clean-card-subtle text-xs font-medium hover:border-slate-400 border border-[var(--border-main)] inline-flex items-center gap-1 transition cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-slate-500" />
-                        Xem
-                      </button>
-                    </td>
-
-                  </tr>
-                ))
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan="7" className="text-center py-8 text-[var(--text-muted)] text-xs">
+                  <td colSpan="9" className="text-center py-8 text-[var(--text-muted)] text-xs">
                     Không tìm thấy giao dịch phù hợp.
                   </td>
                 </tr>
@@ -399,19 +600,29 @@ export default function SystemTransactionsPage() {
             </div>
 
             <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
+              <div className="flex justify-between items-center p-2.5 rounded-lg clean-card-subtle">
                 <span className="text-[var(--text-secondary)]">Loại giao dịch:</span>
-                <span className="font-semibold text-blue-600 uppercase">{selectedTx.type}</span>
+                <div>{getServiceTypeBadge(selectedTx.serviceType || selectedTx.type)}</div>
               </div>
 
               <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
-                <span className="text-[var(--text-secondary)]">Từ nguồn (From):</span>
-                <span className="font-medium text-[var(--text-primary)]">{selectedTx.senderName || 'Hệ thống'}</span>
+                <span className="text-[var(--text-secondary)]">Người gửi:</span>
+                <div className="text-right">
+                  <div className="font-semibold text-[var(--text-primary)]">{getSenderInfo(selectedTx).name}</div>
+                  {getSenderInfo(selectedTx).subtext && (
+                    <div className="font-mono text-[11px] text-[var(--text-secondary)] select-all">{getSenderInfo(selectedTx).subtext}</div>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
-                <span className="text-[var(--text-secondary)]">Đến tài khoản (To):</span>
-                <span className="font-medium text-[var(--text-primary)]">{selectedTx.recipientName || 'Ví E-Wallet'}</span>
+                <span className="text-[var(--text-secondary)]">Người nhận:</span>
+                <div className="text-right">
+                  <div className="font-semibold text-[var(--text-primary)]">{getReceiverInfo(selectedTx).name}</div>
+                  {getReceiverInfo(selectedTx).subtext && (
+                    <div className="font-mono text-[11px] text-[var(--text-secondary)] select-all">{getReceiverInfo(selectedTx).subtext}</div>
+                  )}
+                </div>
               </div>
 
               <div className="flex justify-between p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
@@ -419,19 +630,30 @@ export default function SystemTransactionsPage() {
                 <span className="font-bold text-sm text-emerald-600">{formatVND(selectedTx.amount)}</span>
               </div>
 
+              <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
+                <span className="text-[var(--text-secondary)]">Phí dịch vụ:</span>
+                <span className={`font-semibold text-xs ${selectedTx.fee && Number(selectedTx.fee) > 0 ? 'text-purple-600 dark:text-purple-400 font-mono' : 'text-emerald-600'}`}>
+                  {selectedTx.fee && Number(selectedTx.fee) > 0 ? `${Number(selectedTx.fee).toLocaleString('vi-VN')} VNĐ` : 'Miễn phí (0 VNĐ)'}
+                </span>
+              </div>
+
               <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle font-mono">
-                <span className="text-[var(--text-secondary)]">Idempotency Key:</span>
-                <span className="text-slate-600 dark:text-slate-400 truncate max-w-[180px]">{selectedTx.idempotencyKey || `idemp-${selectedTx.id}`}</span>
+                <span className="text-[var(--text-secondary)]" title="Khóa chống trùng lặp giao dịch (Idempotency Key) trong hệ thống ví">
+                  Mã chống trùng (Idempotency Key):
+                </span>
+                <span className="text-slate-600 dark:text-slate-400 select-all break-all text-[11px] text-right max-w-[220px]" title={selectedTx.idempotencyKey}>
+                  {selectedTx.idempotencyKey || `idemp-${selectedTx.id}`}
+                </span>
               </div>
 
               <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
                 <span className="text-[var(--text-secondary)]">Thời gian khởi tạo:</span>
-                <span>{new Date(selectedTx.createdAt).toLocaleString('vi-VN')}</span>
+                <span>{selectedTx.createdAt ? new Date(selectedTx.createdAt).toLocaleString('vi-VN') : 'Vừa xong'}</span>
               </div>
 
               <div className="p-2.5 rounded-lg clean-card-subtle space-y-1">
-                <div className="text-[var(--text-secondary)]">Ghi chú:</div>
-                <div className="text-[var(--text-primary)]">{selectedTx.description || 'Giao dịch qua ví điện tử MiniWallet'}</div>
+                <div className="text-[var(--text-secondary)]">Nội dung giao dịch:</div>
+                <div className="text-[var(--text-primary)]">{selectedTx.description || 'Giao dịch qua ví điện tử NovaPay'}</div>
               </div>
             </div>
 
@@ -451,3 +673,4 @@ export default function SystemTransactionsPage() {
     </div>
   );
 }
+

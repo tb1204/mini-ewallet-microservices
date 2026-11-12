@@ -1,19 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PiggyBank, X, CheckCircle2, ShieldCheck, AlertCircle, ArrowUpRight, TrendingUp } from 'lucide-react';
 import { useWalletStore } from '../../../store/useWalletStore';
 
 const savingsOptions = [
-  { id: 'flex', title: 'Linh Hoạt (Không kỳ hạn)', termMonths: 0, interestRate: 4.0, desc: 'Rút bất kỳ lúc nào vẫn được tính lãi' },
-  { id: '3m', title: 'Kỳ Hạn 3 Tháng', termMonths: 3, interestRate: 6.0, desc: 'Lãi suất hấp dẫn ngắn hạn' },
-  { id: '6m', title: 'Kỳ Hạn 6 Tháng', termMonths: 6, interestRate: 7.2, desc: 'Tối ưu lợi nhuận cho ví' },
-  { id: '12m', title: 'Kỳ Hạn 12 Tháng', termMonths: 12, interestRate: 8.0, desc: 'Lãi suất cao nhất 8%/năm' }
+  { id: 'flex', title: 'Linh Hoạt (Không kỳ hạn)', termMonths: 0, interestRate: 6.5, desc: 'Rút bất kỳ lúc nào vẫn được tính lãi 6.5%/năm' },
+  { id: '3m', title: 'Kỳ Hạn 3 Tháng', termMonths: 3, interestRate: 7.2, desc: 'Lãi suất hấp dẫn ngắn hạn' },
+  { id: '6m', title: 'Kỳ Hạn 6 Tháng', termMonths: 6, interestRate: 7.8, desc: 'Tối ưu lợi nhuận cho ví' },
+  { id: '12m', title: 'Kỳ Hạn 12 Tháng', termMonths: 12, interestRate: 8.5, desc: 'Lãi suất cao nhất 8.5%/năm' }
 ];
 
 const getIdempotencyKey = (prefix) => `${prefix}-${Date.now()}`;
 
 export default function SavingsModal({ onClose }) {
-  const { balance, savingsAccounts, depositSavings, withdrawSavings } = useWalletStore();
+  const { balance, savingsAccounts, depositSavings, withdrawSavings, fetchSavings } = useWalletStore();
   const [activeTab, setActiveTab] = useState('deposit'); // 'deposit' | 'my_accounts'
+
+  useEffect(() => {
+    fetchSavings();
+  }, []);
   const [selectedOption, setSelectedOption] = useState(savingsOptions[0]);
   const [amount, setAmount] = useState('1000000');
   const [step, setStep] = useState(1); // 1: Input, 2: PIN, 3: Success

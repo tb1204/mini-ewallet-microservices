@@ -229,7 +229,7 @@ export default function InsuranceModal({ onClose }) {
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Mã Giấy chứng nhận:</span>
-                <span className="font-mono text-[11px] text-rose-500 font-bold">INS-{txResult.transactionCode}</span>
+                <span className="font-mono text-[11px] text-rose-500 font-bold">INS-{txResult?.transactionCode || Date.now()}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-text-secondary">Mức bồi thường tối đa:</span>

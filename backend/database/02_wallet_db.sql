@@ -30,7 +30,18 @@ CREATE TABLE IF NOT EXISTS savings_accounts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Seed Initial Data (Thay thế w/s bằng hex hợp lệ d11/d22/d33/e11/e22)
+-- 4. Create Wallet Operations Table (Idempotency Ledger)
+CREATE TABLE IF NOT EXISTS wallet_operations (
+    id BIGSERIAL PRIMARY KEY,
+    operation_key VARCHAR(100) UNIQUE NOT NULL,
+    wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL,
+    amount NUMERIC(15, 2) NOT NULL,
+    operation_type VARCHAR(20) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. Seed Initial Data (Thay thế w/s bằng hex hợp lệ d11/d22/d33/e11/e22)
 INSERT INTO wallets
 (id, user_id, balance, currency, status)
 VALUES
@@ -45,3 +56,20 @@ VALUES
 ('e11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'd11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Tích Luỹ Linh Hoạt', 10000000.00, 4.00, 0, 'ACTIVE'),
 ('e22ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'd11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Tiết Kiệm Tương Lai 6M', 50000000.00, 7.20, 6, 'ACTIVE')
 ON CONFLICT (id) DO NOTHING;
+
+
+create table linked_bank_accounts (
+                                      id uuid not null,
+                                      user_id uuid not null,
+                                      bank_code varchar(20) not null,
+                                      bank_name varchar(100) not null,
+                                      account_number varchar(50) not null,
+                                      account_holder_name varchar(100) not null,
+                                      is_default boolean not null,
+                                      status varchar(20) not null,
+                                      created_at timestamp(6) with time zone not null,
+                                      updated_at timestamp(6) with time zone not null,
+                                      primary key (id)
+)
+create index idx_linked_bank_user_id
+    on linked_bank_accounts (user_id)

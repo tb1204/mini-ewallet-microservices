@@ -4,10 +4,11 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { 
   Wallet, LayoutDashboard, Users, CreditCard, ArrowLeftRight, 
-  FileText, Settings, LogOut, Sun, Moon, Menu, X, Loader2
+  FileText, Settings, LogOut, Sun, Moon, Menu, X
 } from 'lucide-react';
 import SystemConfigModal from '../modals/admin/SystemConfigModal';
 import UserInfoModal from '../modals/UserInfoModal';
+import PageSpinner from '../common/PageSpinner';
 
 export default function AdminLayout() {
   const { logout } = useAuthStore();
@@ -20,19 +21,14 @@ export default function AdminLayout() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Trigger loading effect when switching menu routes
+  // Trigger loading effect when switching menu routes (~1s)
   useEffect(() => {
-    // Schedule loading state update asynchronously to avoid cascading re-renders
-    const startTimer = setTimeout(() => {
-      setIsLoading(true);
-    }, 0);
-
+    setIsLoading(true);
     const endTimer = setTimeout(() => {
       setIsLoading(false);
-    }, 200);
+    }, 1000);
 
     return () => {
-      clearTimeout(startTimer);
       clearTimeout(endTimer);
     };
   }, [location.pathname]);
@@ -55,11 +51,6 @@ export default function AdminLayout() {
   return (
     <div className="min-h-screen bg-bg-main text-text-primary flex relative">
       
-      {/* Top Loading Progress Bar */}
-      {isLoading && (
-        <div className="fixed top-0 left-0 right-0 h-0.5 bg-linear-to-r from-blue-600 via-indigo-500 to-emerald-500 z-50 animate-pulse" />
-      )}
-
       {/* Mobile Backdrop */}
       {sidebarOpen && (
         <div
@@ -77,16 +68,16 @@ export default function AdminLayout() {
         {/* Top Header & Brand */}
         <div className="p-5 space-y-6">
           <div className="flex items-center justify-between">
-            <Link to="/admin/dashboard" className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm">
-                <Wallet className="w-5 h-5" />
+            <Link to="/admin/dashboard" className="flex items-center gap-2.5 group">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-blue-600 p-0.5 shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+                <img src="/favicon.svg" alt="NovaPay Logo" className="w-full h-full rounded-[10px]" />
               </div>
               <div>
-                <span className="text-base font-bold tracking-tight block text-text-primary">
-                  MiniWallet
+                <span className="text-base font-black tracking-tight block bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
+                  NovaPay
                 </span>
-                <span className="text-[11px] font-medium text-text-secondary">
-                  Admin
+                <span className="text-[10px] font-semibold text-purple-600 uppercase tracking-wider">
+                  Admin Portal
                 </span>
               </div>
             </Link>
@@ -155,7 +146,7 @@ export default function AdminLayout() {
             <span>Cấu hình</span>
           </button>
 
-          {/* Logout Button (Đăng xuất) */}
+          {/* Logout Button */}
           <button
             onClick={handleLogout}
             className="w-full py-2 px-3 rounded-lg text-xs font-medium text-red-500 hover:bg-red-500/10 border border-transparent transition flex items-center justify-center gap-2 cursor-pointer"
@@ -179,7 +170,7 @@ export default function AdminLayout() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <span className="font-bold text-sm">MiniWallet Admin</span>
+            <span className="font-bold text-sm bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">NovaPay Admin</span>
           </div>
 
           <button
@@ -191,14 +182,9 @@ export default function AdminLayout() {
         </header>
 
         {/* Page Content Outlet with Transition Effect */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6 flex flex-col">
           {isLoading ? (
-            <div className="min-h-100 flex items-center justify-center animate-in fade-in duration-150">
-              <div className="flex flex-col items-center gap-2 text-text-secondary">
-                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                <span className="text-xs font-medium">Đang tải dữ liệu...</span>
-              </div>
-            </div>
+            <PageSpinner message="Đang tải dữ liệu..." />
           ) : (
             <div className="animate-in fade-in duration-200">
               <Outlet />

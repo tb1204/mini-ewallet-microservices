@@ -25,7 +25,7 @@ public class UserPrincipal implements UserDetails {
     private final String email;
     private final String password;
     private final Collection<? extends GrantedAuthority> authorities;
-    private final Boolean isActive;
+    private final Integer isActive;
 
     /** Factory method converting User entity to UserPrincipal instance. */
     public static UserPrincipal create(User user) {
@@ -75,7 +75,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return Boolean.TRUE.equals(isActive);
+        return isActive != null && isActive == 1;
     }
 }
 

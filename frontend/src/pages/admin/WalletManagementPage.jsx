@@ -1,66 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   CreditCard, Search, Lock, Unlock, Eye, CheckCircle2, X,
-  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight 
+  ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2, AlertCircle 
 } from 'lucide-react';
-
-const initialWallets = [
-  {
-    id: 'w-101-user-main',
-    userId: 'u1111111-1111-1111-1111-111111111111',
-    ownerName: 'Nguyễn Văn User',
-    ownerEmail: 'user@ewallet.com',
-    balance: 15450000,
-    currency: 'VND',
-    status: 'ACTIVE',
-    createdAt: '2026-01-15T08:00:00Z',
-    lastTransactionAt: '2026-08-06T10:30:00Z'
-  },
-  {
-    id: 'w-202-staff-main',
-    userId: 's8888888-8888-8888-8888-888888888888',
-    ownerName: 'Trần Thị Nhân Viên (Staff)',
-    ownerEmail: 'staff@ewallet.com',
-    balance: 8500000,
-    currency: 'VND',
-    status: 'ACTIVE',
-    createdAt: '2026-02-01T09:15:00Z',
-    lastTransactionAt: '2026-08-05T14:20:00Z'
-  },
-  {
-    id: 'w-999-admin-main',
-    userId: 'a9999999-9999-9999-9999-999999999999',
-    ownerName: 'Quản Trị Viên (Admin)',
-    ownerEmail: 'admin@ewallet.com',
-    balance: 100000000,
-    currency: 'VND',
-    status: 'ACTIVE',
-    createdAt: '2026-01-01T00:00:00Z',
-    lastTransactionAt: '2026-08-06T12:00:00Z'
-  },
-  {
-    id: 'w-303-user-blocked',
-    userId: 'u2222222-2222-2222-2222-222222222222',
-    ownerName: 'Lê Văn B',
-    ownerEmail: 'le.van.b@ewallet.com',
-    balance: 2100000,
-    currency: 'VND',
-    status: 'LOCKED',
-    createdAt: '2026-03-10T11:00:00Z',
-    lastTransactionAt: '2026-07-20T16:45:00Z'
-  }
-];
+import { walletApi } from '../../api';
+import { useAuthStore } from '../../store/useAuthStore';
 
 /**
  * WALLET MANAGEMENT PAGE (WalletManagementPage)
  * - Standard 5-Column Table Layout: ID, Owner, Balance, Status, Actions
+ * - Connected directly to wallet-service microservice endpoints via walletApi
  * - Real-time keyword search (Wallet ID, Name, Email) & Status filtering (ACTIVE / LOCKED)
  * - Tri-state sorting mechanism (Default createdAt DESC -> ASC -> DESC -> Default)
  * - Flexible client-side pagination (5, 10, 20 rows per page)
  * - Admin controls for wallet freeze/unfreeze & detail modal viewing
  */
 export default function WalletManagementPage() {
-  const [wallets, setWallets] = useState(initialWallets);
+  const { registeredUsers, fetchAllUsers } = useAuthStore();
+  const [wallets, setWallets] = useState([]);
+  const [isFetching, setIsFetching] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
 
@@ -76,14 +36,77 @@ export default function WalletManagementPage() {
   const [selectedWallet, setSelectedWallet] = useState(null);
   const [msg, setMsg] = useState('');
 
-  const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(num) + ' VNĐ';
+  const formatVND = (num) => new Intl.NumberFormat('vi-VN').format(num || 0) + ' VNĐ';
 
-  const handleToggleWalletLock = (walletId, ownerName, currentStatus) => {
-    const newStatus = currentStatus === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
-    const updated = wallets.map(w => w.id === walletId ? { ...w, status: newStatus } : w);
-    setWallets(updated);
-    setMsg(`Ví của "${ownerName}" đã chuyển sang trạng thái: ${newStatus === 'LOCKED' ? 'Đã khóa' : 'Đã mở khóa'}`);
-    setTimeout(() => setMsg(''), 3000);
+  // Fetch wallets and users on mount
+  useEffect(() => {
+    let isMounted = true;
+    const loadData = async () => {
+      setIsFetching(true);
+      setErrorMessage('');
+      try {
+        const [walletRes] = await Promise.all([
+          walletApi.getAllWallets({ size: 100 }),
+          registeredUsers.length === 0 ? fetchAllUsers() : Promise.resolve(),
+        ]);
+        const rawWallets = walletRes?.result || walletRes?.data || walletRes;
+        if (isMounted) {
+          setWallets(Array.isArray(rawWallets) ? rawWallets : []);
+        }
+      } catch (err) {
+        console.error('Failed to load wallets from wallet-service:', err);
+        if (isMounted) {
+          setErrorMessage('Không thể tải danh sách ví điện tử từ wallet-service.');
+        }
+      } finally {
+        if (isMounted) setIsFetching(false);
+      }
+    };
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchAllUsers, registeredUsers.length]);
+
+  // Map user ID to user metadata
+  const userMap = useMemo(() => {
+    const map = new Map();
+    registeredUsers.forEach((u) => {
+      map.set(u.id, u);
+    });
+    return map;
+  }, [registeredUsers]);
+
+  // Enrich wallet with owner name and email
+  const enrichedWallets = useMemo(() => {
+    return wallets.map((w) => {
+      const owner = userMap.get(w.userId);
+      return {
+        ...w,
+        ownerName: owner?.fullName || w.ownerName || 'Tài khoản người dùng',
+        ownerEmail: owner?.email || w.ownerEmail || w.userId,
+      };
+    });
+  }, [wallets, userMap]);
+
+  const handleToggleWalletLock = async (walletId, ownerName, currentStatus) => {
+    setIsActionLoading(true);
+    setErrorMessage('');
+    try {
+      const newStatus = currentStatus === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
+      await walletApi.updateWalletStatus(walletId, newStatus);
+
+      const updated = wallets.map((w) => (w.id === walletId ? { ...w, status: newStatus } : w));
+      setWallets(updated);
+      setMsg(`Ví của "${ownerName}" đã chuyển sang trạng thái: ${newStatus === 'LOCKED' ? 'Đã khóa' : 'Đã mở khóa'}`);
+      setTimeout(() => setMsg(''), 3000);
+    } catch (err) {
+      console.error('Failed to toggle wallet status:', err);
+      setErrorMessage(err.message || 'Lỗi khi cập nhật trạng thái ví');
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   // 3-State Sort Handler: (none/default) -> asc -> desc -> (default)
@@ -94,7 +117,6 @@ export default function WalletManagementPage() {
     } else if (sortOrder === 'asc') {
       setSortOrder('desc');
     } else {
-      // Third click resets back to default (createdAt desc)
       setSortField(null);
       setSortOrder('asc');
     }
@@ -103,7 +125,7 @@ export default function WalletManagementPage() {
 
   // 1. Filtered Data
   const filteredWallets = useMemo(() => {
-    return wallets.filter(w => {
+    return enrichedWallets.filter((w) => {
       const matchesSearch = 
         w.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
         w.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -111,11 +133,10 @@ export default function WalletManagementPage() {
       const matchesStatus = statusFilter === 'ALL' || w.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
-  }, [wallets, searchTerm, statusFilter]);
+  }, [enrichedWallets, searchTerm, statusFilter]);
 
   // 2. Sorted Data
   const sortedWallets = useMemo(() => {
-    // Default sort by createdAt desc
     if (!sortField) {
       return [...filteredWallets].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
@@ -177,6 +198,14 @@ export default function WalletManagementPage() {
         </div>
       )}
 
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="clean-card p-3 bg-red-500/10 border-red-500/30 text-red-600 text-xs flex items-center gap-2 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-red-600" />
+          {errorMessage}
+        </div>
+      )}
+
       {/* Wallets Table Container */}
       <div className="clean-card p-5 space-y-4 rounded-xl border border-[var(--border-main)]">
         
@@ -223,6 +252,9 @@ export default function WalletManagementPage() {
           <table className="w-full text-left text-xs text-[var(--text-primary)]">
             <thead className="bg-[var(--table-header-bg)] text-[var(--text-secondary)] border-b border-[var(--border-main)] font-medium select-none">
               <tr>
+                {/* STT Column Header */}
+                <th className="p-3 w-12 text-center">STT</th>
+
                 {/* ID Header */}
                 <th
                   onClick={() => handleSort('id')}
@@ -271,14 +303,30 @@ export default function WalletManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border-main)]">
-              {paginatedWallets.length > 0 ? (
-                paginatedWallets.map((w) => (
-                  <tr key={w.id} className="hover:bg-[var(--table-hover-bg)] transition">
-                    
-                    {/* Wallet ID */}
-                    <td className="p-3 font-mono font-medium text-emerald-600 dark:text-emerald-400">
-                      {w.id}
-                    </td>
+              {isFetching ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-12 text-[var(--text-secondary)] text-xs">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                      <span>Đang tải danh sách ví điện tử...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedWallets.length > 0 ? (
+                paginatedWallets.map((w, index) => {
+                  const stt = (currentPage - 1) * pageSize + index + 1;
+                  return (
+                    <tr key={w.id} className="hover:bg-[var(--table-hover-bg)] transition">
+                      
+                      {/* STT Column */}
+                      <td className="p-3 text-center font-medium text-[var(--text-secondary)] text-[11px] w-12">
+                        {stt}
+                      </td>
+
+                      {/* Wallet ID */}
+                      <td className="p-3 font-mono text-[11px] text-slate-500 dark:text-slate-400 select-all" title={w.id}>
+                        {w.id}
+                      </td>
 
                     {/* Owner */}
                     <td className="p-3">
@@ -319,8 +367,9 @@ export default function WalletManagementPage() {
 
                         {/* Lock / Unlock Button */}
                         <button
+                          disabled={isActionLoading}
                           onClick={() => handleToggleWalletLock(w.id, w.ownerName, w.status)}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition cursor-pointer ${
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border flex items-center gap-1 transition cursor-pointer disabled:opacity-50 ${
                             w.status === 'ACTIVE'
                               ? 'bg-red-500/10 hover:bg-red-500/20 text-red-600 border-red-500/20'
                               : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-emerald-500/20'
@@ -340,14 +389,15 @@ export default function WalletManagementPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="5" className="text-center py-8 text-[var(--text-muted)] text-xs">
-                    Không tìm thấy ví điện tử phù hợp.
-                  </td>
-                </tr>
-              )}
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan="6" className="text-center py-8 text-[var(--text-muted)] text-xs">
+                  Không tìm thấy ví điện tử phù hợp.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>
@@ -456,7 +506,7 @@ export default function WalletManagementPage() {
 
               <div className="flex justify-between p-2.5 rounded-lg clean-card-subtle">
                 <span className="text-[var(--text-secondary)]">Ngày khởi tạo:</span>
-                <span>{new Date(selectedWallet.createdAt).toLocaleDateString('vi-VN')}</span>
+                <span>{selectedWallet.createdAt ? new Date(selectedWallet.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}</span>
               </div>
             </div>
 
@@ -476,3 +526,4 @@ export default function WalletManagementPage() {
     </div>
   );
 }
+

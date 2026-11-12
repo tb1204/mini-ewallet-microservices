@@ -1,128 +1,221 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BarChart3, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { useWalletStore } from '../../store/useWalletStore';
 
 export default function SpendingStatsWidget() {
-  // 6 recent months mock statistics data
-  const monthlyData = [
-    {
-      id: 't3',
-      monthName: 'Tháng 3',
-      buttonLabel: 'Tháng 3',
-      shortLabel: 'T3',
-      displayAmount: '3.1M',
-      amount: 3100000,
-      prevAmount: 2800000,
-      txCount: 8,
-      isCurrent: false,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 1395000, percentage: 45, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 775000, percentage: 25, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 558000, percentage: 18, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 372000, percentage: 12, color: 'bg-purple-600' }
-      ]
-    },
-    {
-      id: 't4',
-      monthName: 'Tháng 4',
-      buttonLabel: 'Tháng 4',
-      shortLabel: 'T4',
-      displayAmount: '4.8M',
-      amount: 4800000,
-      prevAmount: 3100000,
-      txCount: 14,
-      isCurrent: false,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 2400000, percentage: 50, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 960000, percentage: 20, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 720000, percentage: 15, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 720000, percentage: 15, color: 'bg-purple-600' }
-      ]
-    },
-    {
-      id: 't5',
-      monthName: 'Tháng 5',
-      buttonLabel: 'Tháng 5',
-      shortLabel: 'T5',
-      displayAmount: '2.9M',
-      amount: 2900000,
-      prevAmount: 4800000,
-      txCount: 7,
-      isCurrent: false,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 1160000, percentage: 40, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 870000, percentage: 30, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 580000, percentage: 20, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 290000, percentage: 10, color: 'bg-purple-600' }
-      ]
-    },
-    {
-      id: 't6',
-      monthName: 'Tháng 6',
-      buttonLabel: 'Tháng 6',
-      shortLabel: 'T6',
-      displayAmount: '5.2M',
-      amount: 5200000,
-      prevAmount: 2900000,
-      txCount: 16,
-      isCurrent: false,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 2444000, percentage: 47, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 1144000, percentage: 22, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 832000, percentage: 16, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 780000, percentage: 15, color: 'bg-purple-600' }
-      ]
-    },
-    {
-      id: 't7',
-      monthName: 'Tháng 7',
-      buttonLabel: 'Tháng 7',
-      shortLabel: 'T7',
-      displayAmount: '4.4M',
-      amount: 4380000,
-      prevAmount: 5200000,
-      txCount: 12,
-      isCurrent: false,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 1971000, percentage: 45, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 1095000, percentage: 25, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 788400, percentage: 18, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 525600, percentage: 12, color: 'bg-purple-600' }
-      ]
-    },
-    {
-      id: 't8',
-      monthName: 'Tháng 8 (Hiện tại)',
-      buttonLabel: 'Tháng 8 (Hiện tại)',
-      shortLabel: 'Tháng 8',
-      displayAmount: '3.9M',
-      amount: 3850000,
-      prevAmount: 4380000,
-      txCount: 9,
-      isCurrent: true,
-      categories: [
-        { name: 'Chuyển tiền P2P', amount: 1732500, percentage: 45, color: 'bg-emerald-600' },
-        { name: 'Hóa đơn Điện & Nước', amount: 962500, percentage: 25, color: 'bg-amber-500' },
-        { name: 'Điện thoại & Data 4G', amount: 693000, percentage: 18, color: 'bg-blue-600' },
-        { name: 'Tiết kiệm & Bảo hiểm', amount: 462000, percentage: 12, color: 'bg-purple-600' }
-      ]
+  const { transactions, wallet, fetchTransactions, fetchMyWallet } = useWalletStore();
+  const [selectedMonthId, setSelectedMonthId] = useState(null);
+
+  useEffect(() => {
+    if (!transactions || transactions.length === 0) {
+      fetchTransactions();
     }
-  ];
-
-  // Default selected month is dynamically resolved (current month or latest item)
-  const [selectedMonthId, setSelectedMonthId] = useState(
-    () => monthlyData.find((m) => m.isCurrent)?.id || monthlyData[monthlyData.length - 1]?.id
-  );
-
-  // Active selected data
-  const selectedData = monthlyData.find((m) => m.id === selectedMonthId) || monthlyData[monthlyData.length - 1];
+    if (!wallet) {
+      fetchMyWallet();
+    }
+  }, []);
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val || 0);
   };
 
-  const maxAmount = Math.max(...monthlyData.map((d) => d.amount));
-  const diffPercent = (((selectedData.amount - selectedData.prevAmount) / selectedData.prevAmount) * 100).toFixed(1);
-  const isReduced = selectedData.amount < selectedData.prevAmount;
+  const formatCompact = (val) => {
+    if (!val || val === 0) return '0 đ';
+    if (val >= 1_000_000_000) {
+      const b = (val / 1_000_000_000).toFixed(1).replace(/\.0$/, '');
+      return `${b}B`;
+    }
+    if (val >= 1_000_000) {
+      const m = (val / 1_000_000).toFixed(1).replace(/\.0$/, '');
+      return `${m}M`;
+    }
+    if (val >= 1_000) {
+      const k = (val / 1_000).toFixed(0);
+      return `${k}K`;
+    }
+    return `${val} đ`;
+  };
+
+  const parseTxDate = (createdAt) => {
+    if (!createdAt) return null;
+    if (Array.isArray(createdAt)) {
+      return new Date(createdAt[0], createdAt[1] - 1, createdAt[2] || 1);
+    }
+    const d = new Date(createdAt);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const currentWalletId = wallet?.id;
+
+  const isIncoming = (tx) => {
+    if (!tx) return false;
+    const txType = tx.serviceType || tx.type;
+    if (txType === 'TOPUP') return true;
+    if (tx.description && tx.description.toLowerCase().includes('rút tiền từ sổ tiết kiệm')) return true;
+    if (currentWalletId && tx.receiverWalletId === currentWalletId && tx.senderWalletId !== currentWalletId) return true;
+    return false;
+  };
+
+  // 6-month statistical data computed dynamically from real database transactions
+  const monthlyData = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIndex = now.getMonth(); // 0 to 11
+
+    // Build 7 rolling months: 6 months ago (index 0) up to current month (index 6)
+    const rawMonths = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonthIndex - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const isCurrent = i === 0;
+
+      rawMonths.push({
+        year,
+        month,
+        id: `m_${year}_${month}`,
+        shortLabel: isCurrent ? `Tháng ${month}` : `T${month}`,
+        monthName: isCurrent ? `Tháng ${month} (Hiện tại)` : `Tháng ${month}`,
+        daysInMonth,
+        isCurrent
+      });
+    }
+
+    const txList = Array.isArray(transactions) ? transactions : [];
+
+    // Compute metrics for all 7 raw months
+    const computed = rawMonths.map((m) => {
+      // Find all successful spending transactions matching this month & year
+      const monthTxList = txList.filter((tx) => {
+        if (!tx || tx.status !== 'SUCCESS') return false;
+        if (isIncoming(tx)) return false;
+        const d = parseTxDate(tx.createdAt);
+        if (!d) return false;
+        return d.getFullYear() === m.year && d.getMonth() + 1 === m.month;
+      });
+
+      const totalAmount = monthTxList.reduce((sum, tx) => sum + (parseFloat(tx.amount) || 0), 0);
+      const txCount = monthTxList.length;
+
+      // Group into categories
+      let p2pAmount = 0;
+      let billAmount = 0;
+      let dataAmount = 0;
+      let savingsAmount = 0;
+      let otherAmount = 0;
+
+      monthTxList.forEach((tx) => {
+        const type = tx.serviceType || tx.type;
+        const amt = parseFloat(tx.amount) || 0;
+        if (type === 'TRANSFER') {
+          p2pAmount += amt;
+        } else if (type === 'UTILITY_BILL') {
+          billAmount += amt;
+        } else if (type === 'UTILITY_DATA') {
+          dataAmount += amt;
+        } else if (type === 'SAVINGS' || type === 'INSURANCE') {
+          savingsAmount += amt;
+        } else {
+          otherAmount += amt;
+        }
+      });
+
+      const categories = [
+        {
+          name: 'Chuyển tiền P2P',
+          amount: p2pAmount,
+          percentage: totalAmount > 0 ? Math.round((p2pAmount / totalAmount) * 100) : 0,
+          color: 'bg-emerald-600'
+        },
+        {
+          name: 'Hóa đơn Điện & Nước',
+          amount: billAmount,
+          percentage: totalAmount > 0 ? Math.round((billAmount / totalAmount) * 100) : 0,
+          color: 'bg-amber-500'
+        },
+        {
+          name: 'Điện thoại & Data 4G',
+          amount: dataAmount,
+          percentage: totalAmount > 0 ? Math.round((dataAmount / totalAmount) * 100) : 0,
+          color: 'bg-blue-600'
+        },
+        {
+          name: 'Tiết kiệm & Bảo hiểm',
+          amount: savingsAmount,
+          percentage: totalAmount > 0 ? Math.round((savingsAmount / totalAmount) * 100) : 0,
+          color: 'bg-purple-600'
+        }
+      ];
+
+      if (otherAmount > 0) {
+        categories.push({
+          name: 'Rút tiền & Khác',
+          amount: otherAmount,
+          percentage: totalAmount > 0 ? Math.round((otherAmount / totalAmount) * 100) : 0,
+          color: 'bg-rose-500'
+        });
+      }
+
+      return {
+        ...m,
+        amount: totalAmount,
+        displayAmount: formatCompact(totalAmount),
+        txCount,
+        categories
+      };
+    });
+
+    // The 6 displayed months are from index 1 to 6; prevAmount comes from index - 1
+    const final6Months = [];
+    for (let k = 1; k < computed.length; k++) {
+      final6Months.push({
+        ...computed[k],
+        prevAmount: computed[k - 1].amount
+      });
+    }
+
+    return final6Months;
+  }, [transactions, wallet]);
+
+  // Active selected data
+  const currentMonthItem = monthlyData.find((m) => m.isCurrent) || monthlyData[monthlyData.length - 1];
+  const activeMonthId = selectedMonthId && monthlyData.some((m) => m.id === selectedMonthId)
+    ? selectedMonthId
+    : currentMonthItem?.id;
+
+  const selectedData = monthlyData.find((m) => m.id === activeMonthId) || currentMonthItem || {
+    id: 'default',
+    monthName: 'Tháng này',
+    shortLabel: 'Tháng này',
+    displayAmount: '0 đ',
+    amount: 0,
+    prevAmount: 0,
+    txCount: 0,
+    daysInMonth: 30,
+    categories: []
+  };
+
+  const maxAmount = Math.max(...monthlyData.map((d) => d.amount), 0);
+
+  let diffPercent = '0.0';
+  let isReduced = false;
+  let isSame = true;
+
+  if (selectedData.prevAmount > 0) {
+    const diff = selectedData.amount - selectedData.prevAmount;
+    diffPercent = Math.abs((diff / selectedData.prevAmount) * 100).toFixed(1);
+    isReduced = diff < 0;
+    isSame = diff === 0;
+  } else if (selectedData.amount > 0) {
+    diffPercent = '100.0';
+    isReduced = false;
+    isSame = false;
+  } else {
+    diffPercent = '0.0';
+    isReduced = false;
+    isSame = true;
+  }
 
   return (
     <div className="clean-card p-6 space-y-6">
@@ -148,7 +241,7 @@ export default function SpendingStatsWidget() {
         </span>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-2.5">
           {monthlyData.map((m) => {
-            const isSelected = m.id === selectedMonthId;
+            const isSelected = m.id === activeMonthId;
             return (
               <button
                 key={m.id}
@@ -194,9 +287,13 @@ export default function SpendingStatsWidget() {
               {formatCurrency(selectedData.amount)}
             </div>
             <div className="flex items-center gap-1.5 text-xs pt-1">
-              {isReduced ? (
+              {isSame ? (
+                <span className="inline-flex items-center gap-0.5 text-slate-500 font-semibold bg-slate-500/10 px-2 py-0.5 rounded">
+                  0%
+                </span>
+              ) : isReduced ? (
                 <span className="inline-flex items-center gap-0.5 text-emerald-600 font-semibold bg-emerald-600/10 px-2 py-0.5 rounded">
-                  <ArrowDownRight className="w-3.5 h-3.5" /> Giảm {Math.abs(diffPercent)}%
+                  <ArrowDownRight className="w-3.5 h-3.5" /> Giảm {diffPercent}%
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-0.5 text-rose-600 font-semibold bg-rose-600/10 px-2 py-0.5 rounded">
@@ -216,7 +313,9 @@ export default function SpendingStatsWidget() {
             <p className="text-[11px] text-text-secondary pt-1">
               {selectedData.amount > selectedData.prevAmount
                 ? `Tiêu nhiều hơn ${formatCurrency(selectedData.amount - selectedData.prevAmount)}`
-                : `Tiết kiệm được ${formatCurrency(selectedData.prevAmount - selectedData.amount)}`}
+                : selectedData.amount < selectedData.prevAmount
+                ? `Tiết kiệm được ${formatCurrency(selectedData.prevAmount - selectedData.amount)}`
+                : `Không đổi so với tháng trước`}
             </p>
           </div>
 
@@ -224,10 +323,10 @@ export default function SpendingStatsWidget() {
           <div className="clean-card p-4 rounded-xl space-y-1 border border-border-main">
             <span className="text-xs text-text-secondary font-medium">TB Chi Tiêu / Ngày</span>
             <div className="text-2xl font-extrabold text-text-primary tracking-tight">
-              {formatCurrency(Math.round(selectedData.amount / 30))}
+              {formatCurrency(Math.round(selectedData.amount / (selectedData.daysInMonth || 30)))}
             </div>
             <p className="text-[11px] text-text-secondary pt-1">
-              Tính trên bình quân 30 ngày
+              Tính trên bình quân {selectedData.daysInMonth || 30} ngày
             </p>
           </div>
         </div>
@@ -252,8 +351,8 @@ export default function SpendingStatsWidget() {
               </div>
 
               {monthlyData.map((d) => {
-                const heightPercent = Math.round((d.amount / maxAmount) * 100);
-                const isThisSelected = d.id === selectedMonthId;
+                const heightPercent = maxAmount > 0 ? Math.round((d.amount / maxAmount) * 100) : 0;
+                const isThisSelected = d.id === activeMonthId;
 
                 return (
                   <button
@@ -272,10 +371,10 @@ export default function SpendingStatsWidget() {
                       {d.displayAmount}
                     </span>
 
-                    {/* Realistic Bar Column (No Capsule Overflow) */}
+                    {/* Realistic Bar Column */}
                     <div className="w-full max-w-7 h-full flex items-end justify-center">
                       <div
-                        style={{ height: `${heightPercent}%` }}
+                        style={{ height: `${heightPercent > 0 ? Math.max(heightPercent, 6) : 0}%` }}
                         className={`w-full rounded-t-md transition-all duration-200 ${
                           isThisSelected
                             ? 'bg-emerald-600 dark:bg-emerald-500 shadow-sm'

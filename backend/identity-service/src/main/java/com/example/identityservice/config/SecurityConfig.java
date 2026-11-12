@@ -50,8 +50,8 @@ public class SecurityConfig {
         http
                 // Disable CSRF for stateless REST APIs using JWT
                 .csrf(AbstractHttpConfigurer::disable)
-                // Enable CORS configuration
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CORS is handled centrally by API Gateway at the perimeter
+                .cors(AbstractHttpConfigurer::disable)
                 // Use stateless session management (no HTTP session created on server)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider)

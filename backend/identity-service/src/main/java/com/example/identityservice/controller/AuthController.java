@@ -54,6 +54,38 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Mã PIN hợp lệ", isValid));
     }
 
+    /** Authenticated POST /api/v1/auth/change-pin endpoint setting up or changing 6-digit PIN. */
+    @PostMapping("/change-pin")
+    public ResponseEntity<ApiResponse<String>> changePin(@Valid @RequestBody ChangePinRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        authService.changePin(currentUserId, request);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật mã PIN thành công", "Mã PIN 6 số đã được lưu an toàn"));
+    }
+
+    /** Authenticated POST /api/v1/auth/forgot-pin/send-otp endpoint generating and sending OTP to user email. */
+    @PostMapping("/forgot-pin/send-otp")
+    public ResponseEntity<ApiResponse<String>> sendPinResetOtp() {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        String message = authService.sendPinResetOtp(currentUserId);
+        return ResponseEntity.ok(ApiResponse.success("Gửi mã OTP thành công", message));
+    }
+
+    /** Authenticated POST /api/v1/auth/forgot-pin/verify-otp endpoint validating 6-digit email OTP. */
+    @PostMapping("/forgot-pin/verify-otp")
+    public ResponseEntity<ApiResponse<Boolean>> verifyPinResetOtp(@Valid @RequestBody VerifyOtpRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        boolean isValid = authService.verifyPinResetOtp(currentUserId, request.getOtp());
+        return ResponseEntity.ok(ApiResponse.success("Xác thực OTP thành công", isValid));
+    }
+
+    /** Authenticated POST /api/v1/auth/forgot-pin/reset endpoint setting new PIN after OTP verification. */
+    @PostMapping("/forgot-pin/reset")
+    public ResponseEntity<ApiResponse<String>> resetPinWithOtp(@Valid @RequestBody ResetPinWithOtpRequest request) {
+        UUID currentUserId = SecurityUtil.getCurrentUserId();
+        authService.resetPinWithOtp(currentUserId, request.getOtp(), request.getNewPin());
+        return ResponseEntity.ok(ApiResponse.success("Đặt lại mã PIN thành công", "Mã PIN mới 6 số đã được kích hoạt"));
+    }
+
     /** Authenticated POST /api/v1/auth/logout endpoint revoking active refresh tokens. */
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<String>> logout() {
