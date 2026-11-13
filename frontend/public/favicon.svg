@@ -1,35 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
-  <defs>
-    <linearGradient id="novaBg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#059669" />
-      <stop offset="50%" stop-color="#0d9488" />
-      <stop offset="100%" stop-color="#2563eb" />
-    </linearGradient>
-    <linearGradient id="novaGlow" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9" />
-      <stop offset="100%" stop-color="#a7f3d0" stop-opacity="0.7" />
-    </linearGradient>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.2" />
-    </filter>
-  </defs>
-
-  <!-- Modern Rounded Squircle Badge -->
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#novaBg)" />
-  <rect x="2" y="2" width="60" height="60" rx="16" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" />
-
-  <!-- Modern Stylized Nova 'N' Payment Emblem -->
-  <g filter="url(#shadow)">
-    <!-- Left Vertical Pillar -->
-    <path d="M18 45V19C18 17.8954 18.8954 17 20 17H22.5C23.6046 17 24.5 17.8954 24.5 19V45C24.5 46.1046 23.6046 47 22.5 47H20C18.8954 47 18 46.1046 18 45Z" fill="#ffffff" />
-    
-    <!-- Dynamic Diagonal Stream -->
-    <path d="M22.5 17.5L41.5 44.5C42.2 45.5 41.5 47 40.2 47H37.5C36.6 47 35.8 46.5 35.3 45.8L18.5 22C17.8 21 18.5 19.5 19.8 19.5H21C21.6 19.5 22.1 18.8 22.5 17.5Z" fill="url(#novaGlow)" />
-    
-    <!-- Right Vertical Pillar -->
-    <path d="M39.5 19V45C39.5 46.1046 40.3954 47 41.5 47H44C45.1046 47 46 46.1046 46 45V19C46 17.8954 45.1046 17 44 17H41.5C40.3954 17 39.5 17.8954 39.5 19Z" fill="#ffffff" />
-    
-    <!-- Nova 4-point Sparkle Star -->
-    <path d="M46 14C46 17 49 18 49 18C49 18 46 19 46 22C46 19 43 18 43 18C43 18 46 17 46 14Z" fill="#facc15" />
-  </g>
+  <!-- Solid Emerald Green Squircle -->
+  <rect width="64" height="64" rx="16" fill="#059669" />
+  
+  <!-- Minimalist Pure White Nova 'N' Emblem -->
+  <path 
+    d="M17 46V18h7.2l15.6 20.5V18H47v28h-7.2L24.2 25.5V46H17z" 
+    fill="#ffffff" 
+  />
 </svg>
