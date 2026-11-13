@@ -32,11 +32,57 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
 -- 4. Seed Initial Data
+-- Note: Default password for all seed accounts is 'user123' (or 'admin123' for admin), PIN is '123456'.
+-- BCrypt hashes:
+-- 'admin123' -> '$2a$10$CnZREQcYiswHWlvJPbcOfeeoxE8iPkfNy3m0//IwAWwgefwqYQcQ6'
+-- 'user123'  -> '$2a$10$TLZUuUIxlAY3TH4etoC0uexvDKLy8aDcwu2mRacpx3FLPcC62kG4.'
+-- '123456'   -> '$2a$10$34oNfzLWsFezd73F8mQI.eK7FOjTsqM3gTKEs0Pxe4UUvWf24Jqhe'
 INSERT INTO users 
-(id, username, email, phone_number, password_hash, pin_hash, full_name, role, avatar_url, kyc_status) 
+(id, username, email, phone_number, password_hash, pin_hash, full_name, role, avatar_url, kyc_status, is_active) 
 VALUES 
-('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'nguyenvana', 'user@ewallet.com', '0988776655', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', 'Nguyễn Văn A', 'ROLE_USER', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80', 'VERIFIED'),
-('b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 'admin', 'admin@ewallet.com', '0900000000', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', 'Administrator', 'ROLE_ADMIN', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80', 'VERIFIED'),
-('c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'tranthib', 'tranthib@ewallet.com', '0912345678', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', '$2a$10$abcdefghijklmnopqrstuvwxyz0123456789', 'Trần Thị B', 'ROLE_USER', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80', 'VERIFIED')
+(
+    'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 
+    'nguyenvana', 
+    'user@novapay.com', 
+    '0988776655', 
+    '$2a$10$TLZUuUIxlAY3TH4etoC0uexvDKLy8aDcwu2mRacpx3FLPcC62kG4.', 
+    '$2a$10$34oNfzLWsFezd73F8mQI.eK7FOjTsqM3gTKEs0Pxe4UUvWf24Jqhe', 
+    'Nguyễn Văn A', 
+    'ROLE_USER', 
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80', 
+    'VERIFIED',
+    TRUE
+),
+(
+    'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22', 
+    'admin', 
+    'admin@novapay.com', 
+    '0900000000', 
+    '$2a$10$CnZREQcYiswHWlvJPbcOfeeoxE8iPkfNy3m0//IwAWwgefwqYQcQ6', 
+    '$2a$10$34oNfzLWsFezd73F8mQI.eK7FOjTsqM3gTKEs0Pxe4UUvWf24Jqhe', 
+    'Quản Trị Viên (Admin)', 
+    'ROLE_ADMIN', 
+    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80', 
+    'VERIFIED',
+    TRUE
+),
+(
+    'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 
+    'tranthib', 
+    'tranthib@novapay.com', 
+    '0912345678', 
+    '$2a$10$TLZUuUIxlAY3TH4etoC0uexvDKLy8aDcwu2mRacpx3FLPcC62kG4.', 
+    '$2a$10$34oNfzLWsFezd73F8mQI.eK7FOjTsqM3gTKEs0Pxe4UUvWf24Jqhe', 
+    'Trần Thị B', 
+    'ROLE_USER', 
+    'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80', 
+    'VERIFIED',
+    TRUE
+)
 ON CONFLICT (username) DO NOTHING;

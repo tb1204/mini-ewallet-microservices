@@ -41,7 +41,24 @@ CREATE TABLE IF NOT EXISTS wallet_operations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 5. Seed Initial Data (Thay thế w/s bằng hex hợp lệ d11/d22/d33/e11/e22)
+-- 5. Create Linked Bank Accounts Table
+CREATE TABLE IF NOT EXISTS linked_bank_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    bank_code VARCHAR(20) NOT NULL,
+    bank_name VARCHAR(100) NOT NULL,
+    account_number VARCHAR(50) NOT NULL,
+    account_holder_name VARCHAR(100) NOT NULL,
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_linked_bank_user_id ON linked_bank_accounts(user_id);
+CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
+
+-- 6. Seed Initial Data
 INSERT INTO wallets
 (id, user_id, balance, currency, status)
 VALUES
@@ -57,19 +74,9 @@ VALUES
 ('e22ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'd11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Tiết Kiệm Tương Lai 6M', 50000000.00, 7.20, 6, 'ACTIVE')
 ON CONFLICT (id) DO NOTHING;
 
-
-create table linked_bank_accounts (
-                                      id uuid not null,
-                                      user_id uuid not null,
-                                      bank_code varchar(20) not null,
-                                      bank_name varchar(100) not null,
-                                      account_number varchar(50) not null,
-                                      account_holder_name varchar(100) not null,
-                                      is_default boolean not null,
-                                      status varchar(20) not null,
-                                      created_at timestamp(6) with time zone not null,
-                                      updated_at timestamp(6) with time zone not null,
-                                      primary key (id)
-)
-create index idx_linked_bank_user_id
-    on linked_bank_accounts (user_id)
+INSERT INTO linked_bank_accounts
+(id, user_id, bank_code, bank_name, account_number, account_holder_name, is_default, status)
+VALUES
+('f11ebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'MBBANK', 'Ngân hàng Quân Đội (MBBank)', '0123456789', 'NGUYEN VAN A', TRUE, 'ACTIVE'),
+('f22ebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33', 'VCB', 'Ngân hàng TMCP Ngoại Thương (Vietcombank)', '9876543210', 'TRAN THI B', TRUE, 'ACTIVE')
+ON CONFLICT (id) DO NOTHING;
